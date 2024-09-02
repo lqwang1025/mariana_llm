@@ -1,0 +1,20 @@
+/*
+ *        (C) COPYRIGHT Daniel Wang Limited.
+ *             ALL RIGHTS RESERVED
+ *
+ * File       : version.h
+ * Authors    : lqwang@inspur
+ * Create Time: 2024-06-12:17:26:50
+ * Description:
+ *
+ */
+
+#ifndef __VERSION_H__
+#define __VERSION_H__
+
+const std::string GIT_HASH = "@GIT_HASH@";
+const std::string BUILD_VERSION = "@MAR_VERSION@";
+const std::string BUILD_TIMING = "@COMPILE_TIME@";
+
+#endif /* __VERSION_H__ */
+

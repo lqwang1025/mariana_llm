@@ -1,0 +1,17 @@
+include_directories(${CMAKE_CURRENT_LIST_DIR})
+
+include(${CMAKE_CURRENT_LIST_DIR}/utils/CMakeLists.txt)
+include(${CMAKE_CURRENT_LIST_DIR}/core/CMakeLists.txt)
+include(${CMAKE_CURRENT_LIST_DIR}/ops/CMakeLists.txt)
+include(${CMAKE_CURRENT_LIST_DIR}/token/CMakeLists.txt)
+include(${CMAKE_CURRENT_LIST_DIR}/models/CMakeLists.txt)
+include(${CMAKE_CURRENT_LIST_DIR}/api/CMakeLists.txt)
+
+list(APPEND MARIANA_LLM_SRC
+  ${MARIANA_LLM_CORE_OBJECTS}
+  ${MARIANA_LLM_OPS_OBJECTS}
+  ${MARIANA_LLM_TOKEN_OBJECTS}
+  ${MARIANA_LLM_UTILS_OBJECTS}
+  ${MARIANA_LLM_MODELS_OBJECTS}
+  ${MARIANA_LLM_API_OBJECTS}
+)

@@ -17,3 +17,4 @@
 	export GLOG_v=4 # 所有的模型加载解析信息将会打印到日志
 
 ***
+https://github.com/lqwang1025/mariana_llm/issues/1#issuecomment-2346405972

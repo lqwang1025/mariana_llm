@@ -9,6 +9,9 @@
  * 
  */
 
+#include <string>
+#include <version.h>
+
 #include <mariana_llm/mariana_llm.h>
 
 #include <models/lmodels.h>
@@ -17,6 +20,7 @@
 namespace mariana {
 
 void mariana_llm_init() {
+    printf("\033[7;32;40m mariana_llm version: %s build timing:%s git hash: %s\033[0m\n",BUILD_VERSION.c_str(), BUILD_TIMING.c_str(), GIT_HASH.c_str());
     init_lmodels_module();
 }
 

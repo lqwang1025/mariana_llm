@@ -26,9 +26,13 @@ IF (NOT DEFINED CMAKE_INSTALL_PREFIX)
 project(mariana_llm VERSION ${MAR_VERSION} LANGUAGES C CXX CUDA)
 
 option(OPEN_PROFILER "Profiler this library" OFF)
+option(USE_CUDA "Compile with cuda" OFF)
 
 if (OPEN_PROFILER)
   add_definitions(-DOPEN_TIME_TRACE)
+endif()
+if (USE_CUDA)
+  add_definitions(-DMLM_USE_CUDA)
 endif()
 
 IF("${CMAKE_BUILD_TYPE}" MATCHES "Debug")

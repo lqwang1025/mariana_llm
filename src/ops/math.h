@@ -17,14 +17,14 @@
 namespace mariana {
 
 struct AddFunc : public Function {
-    bool plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+    bool plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 protected:
     friend class SwinLayerFunc;
     bool _forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 };
 
 struct MulFunc : public Function {
-    bool plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+    bool plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 protected:
     bool _forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 };

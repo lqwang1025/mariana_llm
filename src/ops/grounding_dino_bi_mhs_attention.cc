@@ -38,73 +38,76 @@ bool GroundingDinoBiMHSAttentionFunc::init(const ModelParam& param, const std::s
     ModelParam::SafeTensorInfo sti;
     // 1. vision_proj
     TRY_STL(sti = param.sti_map.at(node_name+".vision_proj.weight"), return false);
-    Tensor vision_proj(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_vision_proj = vision_proj;
+    Tensor vision_proj(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_vision_proj = vision_proj.deepcopy();
     TRY_STL(sti = param.sti_map.at(node_name+".vision_proj.bias"), return false);
-    Tensor vision_proj_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_vision_proj_bias = vision_proj_bias;
+    Tensor vision_proj_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_vision_proj_bias = vision_proj_bias.deepcopy();
     // 2. text_proj
     TRY_STL(sti = param.sti_map.at(node_name+".text_proj.weight"), return false);
-    Tensor text_proj(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_text_proj = text_proj;
+    Tensor text_proj(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_text_proj = text_proj.deepcopy();
     TRY_STL(sti = param.sti_map.at(node_name+".text_proj.bias"), return false);
-    Tensor text_proj_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_text_proj_bias = text_proj_bias;
+    Tensor text_proj_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_text_proj_bias = text_proj_bias.deepcopy();
     // 3. vision_value
     TRY_STL(sti = param.sti_map.at(node_name+".values_vision_proj.weight"), return false);
-    Tensor vision_value(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_vision_value_proj = vision_value;
+    Tensor vision_value(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_vision_value_proj = vision_value.deepcopy();
     TRY_STL(sti = param.sti_map.at(node_name+".values_vision_proj.bias"), return false);
-    Tensor vision_value_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_vision_value_proj_bias = vision_value_bias;
+    Tensor vision_value_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_vision_value_proj_bias = vision_value_bias.deepcopy();
     // 4. text_value
     TRY_STL(sti = param.sti_map.at(node_name+".values_text_proj.weight"), return false);
-    Tensor text_value(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_text_value_proj = text_value;
+    Tensor text_value(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_text_value_proj = text_value.deepcopy();
     TRY_STL(sti = param.sti_map.at(node_name+".values_text_proj.bias"), return false);
-    Tensor text_value_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_text_value_proj_bias = text_value_bias;
+    Tensor text_value_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_text_value_proj_bias = text_value_bias.deepcopy();
     // 5. out_vision
     TRY_STL(sti = param.sti_map.at(node_name+".out_vision_proj.weight"), return false);
-    Tensor out_vision(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_out_vision_proj = out_vision;
+    Tensor out_vision(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_out_vision_proj = out_vision.deepcopy();
     TRY_STL(sti = param.sti_map.at(node_name+".out_vision_proj.bias"), return false);
-    Tensor out_vision_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_out_vision_proj_bias = out_vision_bias;
+    Tensor out_vision_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_out_vision_proj_bias = out_vision_bias.deepcopy();
+    
     std::string _name = absl::StrReplaceAll(node_name, {{".attn", ""}});
     TRY_STL(sti = param.sti_map.at(_name+".vision_param"), return false);
-    Tensor vision_param(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
+    Tensor vision_param(sti.shape, DataOn::CPU, sti.data, sti.dtype);
     
     // 6. out_text
     TRY_STL(sti = param.sti_map.at(node_name+".out_text_proj.weight"), return false);
-    Tensor out_text(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_out_text_proj = out_text;
+    Tensor out_text(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_out_text_proj = out_text.deepcopy();
     TRY_STL(sti = param.sti_map.at(node_name+".out_text_proj.bias"), return false);
-    Tensor out_text_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_out_text_proj_bias = out_text_bias;
+    Tensor out_text_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_out_text_proj_bias = out_text_bias.deepcopy();
+    
     TRY_STL(sti = param.sti_map.at(_name+".text_param"), return false);
-    Tensor text_param(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
+    Tensor text_param(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    
     ThreadPool* tp = new ThreadPool(ThreadPool::default_num_threads());
     MulFunc mul_func;
     mul_func.set_thread_pool(tp);
     tensor_list inputs = {out_vision, vision_param};
-    tensor_list output = {out_vision};
+    tensor_list output = {m_out_vision_proj};
     ExeContext context;
     mul_func.on_forward(inputs, output, context);
     inputs = {out_vision_bias, vision_param};
-    output = {out_vision_bias};
+    output = {m_out_vision_proj_bias};
     mul_func.on_forward(inputs, output, context);
     inputs = {out_text, text_param};
-    output = {out_text};
+    output = {m_out_text_proj};
     mul_func.on_forward(inputs, output, context);
     inputs = {out_text_bias, text_param};
-    output = {out_text_bias};
+    output = {m_out_text_proj_bias};
     mul_func.on_forward(inputs, output, context);
     delete tp;
     return true;
 }
 
-bool GroundingDinoBiMHSAttentionFunc::plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
+bool GroundingDinoBiMHSAttentionFunc::plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     const Tensor& vision_features = inputs[0];
     int32_t vnb = vision_features.dim_at(0);
     int32_t vnr = vision_features.dim_at(1);

@@ -24,7 +24,7 @@ bool PermuteFunc::init(const ModelParam& param, const std::string& node_name) {
     return true;
 }
 
-bool PermuteFunc::plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
+bool PermuteFunc::plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     if (outputs.empty()) {
         outputs.push_back(Tensor(inputs[0].device()));
     }

@@ -24,7 +24,7 @@ struct NormParam {
 
 struct LayerNormFunc : public Function {
     bool init(const ModelParam& param, const std::string& node_name)override;
-    bool plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+    bool plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 protected:
     friend class SwinLayerFunc;
     bool _forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;

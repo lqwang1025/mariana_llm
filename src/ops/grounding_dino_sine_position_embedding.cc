@@ -21,7 +21,7 @@ bool GroundingDinoSinePositionEmbeddingFunc::init(const ModelParam& param, const
     return true;
 }
 
-bool GroundingDinoSinePositionEmbeddingFunc::plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
+bool GroundingDinoSinePositionEmbeddingFunc::plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     if (outputs.empty()) {
         outputs.push_back(Tensor(inputs[0].device()));
     }

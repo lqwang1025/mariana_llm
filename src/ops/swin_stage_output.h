@@ -23,7 +23,7 @@ struct SwinStageOutputFunc : public Function {
     ~SwinStageOutputFunc();
     bool init(const ModelParam& param, const std::string& node_name)override;
     void set_thread_pool(ThreadPool* tp)override;
-    bool plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+    bool plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 protected:
     bool _forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
     LayerNormFunc* m_layer_norm = nullptr;

@@ -62,31 +62,20 @@ AIResult GroundingDINO::compute(ExeContext& context) {
     Tensor image({context.image.batch, context.image.height, context.image.width, context.image.channel},
                  context.image.device, context.image.data, TypeMeta::make<uint8_t>(), false);
     _pre_process(image, m_image_tensor);
-    //Tensor image({1, 3, 752, 1336}, DataOn::CPU);
-    //Tensor image({1, 3, 800, 1068}, DataOn::CPU);
-    float* img_data = image.mutable_ptr<float>();
-    std::ifstream fin("grounding-dino/pixel.bin", std::ios::in | std::ios::binary);
-    //std::ifstream fin("../pixel_800_1068.bin", std::ios::in | std::ios::binary);
-
-    if(!fin.is_open()) {
-        MLOG(FATAL)<<"open pixel failed";
-    }
-    fin.read((char*)img_data, image.total_size()*sizeof(float));
     KeyTensorMap key_tensor_map;
     key_tensor_map = {
         {"model.text_backbone.embeddings.word_embeddings", {input_ids}},
         {"model.text_backbone.embeddings.position_embeddings", {pos_ids}},
         {"model.text_backbone.embeddings.token_type_embeddings", {token_type_ids}},
         {"model.att_mask", {text_satt_mask}},
-        {"model.backbone.conv_encoder.model.embeddings.patch_embeddings.projection", {image}}
+        {"model.backbone.conv_encoder.model.embeddings.patch_embeddings.projection", {m_image_tensor}}
     };
     tensor_list otensors = m_graph->forward(key_tensor_map, context);
-    //otensors = m_graph->forward(key_tensor_map, context);
     Tensor bbox = otensors[0];
     Tensor scores = otensors[1];
     Tensor probs = otensors[2];
     AIResult result;
-    _post_process(bbox, scores, probs, token, result);
+    _post_process(bbox, scores, probs, token, result, context);
     return result;
 }
 
@@ -117,21 +106,23 @@ void GroundingDINO::_pre_process(const Tensor& input, Tensor& out) {
             ow = static_cast<int32_t>(size*factor);
         }
     }
-    MLOG(INFO)<<ow<<" "<<oh<<" "<<size;
-    out.try_realloc({n, c, h, w}, input.dtype());
-    Function::_parallel_sync(m_graph->thread_pool(), 100, grounding_dino_pre_process, std::ref(input),
-                             std::ref(m_means), std::ref(m_stds), std::ref(out));
+    int32_t pad_r = m_patch_size - ow % m_patch_size;
+    int32_t pad_b = m_patch_size - oh % m_patch_size;
+    out.try_realloc({n, c, oh+pad_b, ow+pad_r}, TypeMeta::make<float>());
+    Function::_parallel_sync(m_graph->thread_pool(), out.total_size(), grounding_dino_pre_process,
+                             std::ref(input), std::ref(m_means), std::ref(m_stds),
+                             std::ref(m_rescale_factor), std::ref(pad_r), std::ref(pad_b), std::ref(out));
 }
 
-void GroundingDINO::_post_process(const Tensor& bbox, const Tensor& scores, const Tensor& probs, const std::vector<int32_t>& token, AIResult& result) {
+void GroundingDINO::_post_process(const Tensor& bbox, const Tensor& scores, const Tensor& probs, const std::vector<int32_t>& token, AIResult& result, ExeContext& context) {
     int32_t B = bbox.dim_at(0);
     int32_t N = bbox.dim_at(1);
     if (B != 1) {
         MLOG(ERROR)<<"Support 1 batch now!!";
         return;
     }
-    const float box_threshold = 0.4f;
-    const float text_threshold = 0.3f;
+    const float box_threshold = context.post_info.box_threshold;
+    const float text_threshold = context.post_info.text_threshold;
     for (int32_t b = 0; b < B; ++b) {
         for (int32_t n = 0; n < N; ++n) {
             float score = scores.data_at<float>(b*scores.stride_at(0)+n);
@@ -198,14 +189,14 @@ bool GroundingDINO::_generate_masks_with_special_tokens_and_transfer_map(const s
     return true;
 }
 
-bool GroundingDINO::make_graph(const char* dir_path, ExeContext& context) {
+bool GroundingDINO::make_graph(const char* dir_path, GptParams& gpt_params, ExeContext& context) {
     TRACE();
     AnyMap     bert_param;
     AnyMap     dino_param;
     AnyMap     swin_param;
-    ModelParam bert_model_param(context);
-    ModelParam dino_model_param(context);
-    ModelParam swin_model_param(context);
+    ModelParam bert_model_param;
+    ModelParam dino_model_param;
+    ModelParam swin_model_param;
     bool ok = load_param(dir_path, bert_param, dino_param, swin_param,
                          bert_model_param, dino_model_param, swin_model_param);
     AnyMap     preprocessor_param;
@@ -223,6 +214,8 @@ bool GroundingDINO::make_graph(const char* dir_path, ExeContext& context) {
     TRY_ANY_CAST(m_rescale_factor, preprocessor_param.at("rescale_factor"), return false);
     TRY_ANY_CAST(m_means, preprocessor_param.at("image_mean"), return false);
     TRY_ANY_CAST(m_stds, preprocessor_param.at("image_std"), return false);
+    TRY_ANY_CAST(m_patch_size, swin_param.at("patch_size"), return false);
+    
     AnyMap size_param;
     TRY_ANY_CAST(size_param, preprocessor_param.at("size"), return false);
     TRY_ANY_CAST(m_longest_edge, size_param.at("longest_edge"), return false);
@@ -236,7 +229,7 @@ bool GroundingDINO::make_graph(const char* dir_path, ExeContext& context) {
     if (context.max_text_len == 0) {
         TRY_ANY_CAST(context.max_text_len, dino_param.at("max_text_len"), return false);
     }
-    m_graph = std::make_shared<Graph>(context);
+    m_graph = std::make_shared<Graph>(gpt_params.n_threads);
 
     NodeSharedPtr inputs_embedding_pass = m_graph->make_root(bert_model_param, "model.text_backbone.embeddings.word_embeddings");
     NodeSharedPtr inputs_embedding = m_graph->make_node(OpCategory::GetRows, bert_model_param, {inputs_embedding_pass}, "model.text_backbone.embeddings.word_embeddings");
@@ -324,6 +317,7 @@ bool GroundingDINO::make_graph(const char* dir_path, ExeContext& context) {
     std::vector<std::string> stage_names;
     TRY_ANY_CAST(stage_names, swin_param.at("stage_names"), return false);
     std::vector<NodeSharedPtr> connect_nodes;
+    NodeSharedPtr _ln_info_node = next;
     for (size_t i_layer = 0; i_layer < depths.size(); ++i_layer) {
         swin_model_param.n_head = num_heads[i_layer];
         swin_model_param.n_embd = swin_n_embd * pow(2, i_layer);
@@ -337,6 +331,7 @@ bool GroundingDINO::make_graph(const char* dir_path, ExeContext& context) {
             }
             std::string name = absl::StrFormat("model.backbone.conv_encoder.model.encoder.layers.%d.blocks.%d", i_layer, i);
             next = m_graph->make_node(OpCategory::SwinLayer, swin_model_param, {next}, name);
+            next->push_info_shared_nodes({_ln_info_node});
             NodeSharedPtr route = next;
             name = absl::StrFormat("model.backbone.conv_encoder.model.encoder.layers.%d.blocks.%d.layernorm_after", i_layer, i);
             next = m_graph->make_node(OpCategory::LayerNorm, swin_model_param, {next}, name);
@@ -353,13 +348,16 @@ bool GroundingDINO::make_graph(const char* dir_path, ExeContext& context) {
             std::string stage_name = stage_names[*out_index];
             std::string name = absl::StrFormat("model.backbone.conv_encoder.model.hidden_states_norms.%s", stage_name);
             NodeSharedPtr swin_out = m_graph->make_node(OpCategory::SwinStageOutput, swin_model_param, {next}, name);
+            swin_out->push_info_shared_nodes({_ln_info_node});
             connect_nodes.push_back(swin_out);
         }
         if (i_layer < depths.size()-1) {
             swin_model_param.patch_merge_step = 2;
             next = m_graph->make_node(OpCategory::SwinPatchMerging, swin_model_param, {next});
+            next->push_info_shared_nodes({_ln_info_node});
             std::string name = absl::StrFormat("model.backbone.conv_encoder.model.encoder.layers.%d.downsample.norm", i_layer);
             next = m_graph->make_node(OpCategory::LayerNorm, swin_model_param, {next}, name);
+            _ln_info_node = next;
             name = absl::StrFormat("model.backbone.conv_encoder.model.encoder.layers.%d.downsample.reduction", i_layer);
             next = m_graph->make_node(OpCategory::MatMul, swin_model_param, {next}, name);
         }
@@ -423,6 +421,7 @@ bool GroundingDINO::make_graph(const char* dir_path, ExeContext& context) {
     }
     // 4.2 dino encoder
     next = m_graph->make_node(OpCategory::GroundingDinoEncoderBefore, dino_model_param, feature_maps);
+    NodeSharedPtr _gdeb_info_node = next;
     int32_t encoder_layers = 0;
     TRY_ANY_CAST(encoder_layers, dino_param.at("encoder_layers"), return false);
     TRY_ANY_CAST(dino_model_param.n_head, dino_param.at("encoder_attention_heads"), return false);
@@ -442,9 +441,11 @@ bool GroundingDINO::make_graph(const char* dir_path, ExeContext& context) {
     TRY_ANY_CAST(dino_model_param.d_model, dino_param.at("d_model"), return false);
     std::string name = absl::StrFormat("model.encoder.layers.%d", 0);
     next = m_graph->make_node(OpCategory::GroundingDinoEncoderLayer, dino_model_param, {next, text_features, att_mask, position_embedding_pass}, name);
+    next->push_info_shared_nodes({_gdeb_info_node});
     for (int32_t i = 1; i < encoder_layers; ++i) {
         name = absl::StrFormat("model.encoder.layers.%d", i);
         next = m_graph->make_node(OpCategory::GroundingDinoEncoderLayer, dino_model_param, {next}, name);
+        next->push_info_shared_nodes({_gdeb_info_node});
     }
     // 4.3 dino decoder
     TRY_ANY_CAST(dino_model_param.num_queries, dino_param.at("num_queries"), return false);
@@ -452,7 +453,13 @@ bool GroundingDINO::make_graph(const char* dir_path, ExeContext& context) {
     TRY_ANY_CAST(dino_model_param.n_head, dino_param.at("decoder_attention_heads"), return false);
     TRY_ANY_CAST(dino_model_param.n_embd, dino_param.at("d_model"), return false);
     next = m_graph->make_node(OpCategory::GroundingDinoDecoderBefore, dino_model_param, {next, token_type_embedding_pass}, name);
+    next->push_info_shared_nodes({_gdeb_info_node});
     next = m_graph->make_leaf(OpCategory::GroundingDinoForDetection, dino_model_param, {next}, name);
+
+    bert_model_param.release();
+    dino_model_param.release();
+    swin_model_param.release();
+    
     return true;
 }
 

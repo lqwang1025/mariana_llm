@@ -96,6 +96,7 @@ public:
         return *this;
     }
     Tensor deepcopy(void* extra=nullptr) const;
+    Tensor shallowcopy() const;
     Tensor cuda(void* extra=nullptr) const;
     Tensor cpu(void* extra=nullptr) const;
 private:

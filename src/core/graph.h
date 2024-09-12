@@ -32,20 +32,22 @@ struct ModelParam;
 
 class Graph final {
 public:
-    Graph(ExeContext& context);
+    Graph(int32_t num_of_threads);
     ~Graph();
+    ThreadPool* thread_pool() const {
+        return m_tp;
+    }
+    bool gpu_distribute();
     NodeSharedPtr make_root(const ModelParam& param, const std::string& name="");
     NodeSharedPtr make_node(const OpCategory& opcate, const ModelParam& param, const std::vector<NodeSharedPtr>& inodes, const std::string& name="");
     NodeSharedPtr make_leaf(const OpCategory& opcate, const ModelParam& param, const std::vector<NodeSharedPtr>& inodes, const std::string& name="");
     tensor_list forward(const KeyTensorMap& input_map, ExeContext& context);
-    ThreadPool* thread_pool() const {
-        return m_tp;
-    }
 private:
     ThreadPool* m_tp = nullptr;
     std::vector<NodeSharedPtr> m_nodes;
     std::vector<NodeSharedPtr> m_leafs;
     std::vector<NodeSharedPtr> m_roots;
+    std::vector<NodeSharedPtr> m_all_nodes;
 };
     
 } // namespace mariana

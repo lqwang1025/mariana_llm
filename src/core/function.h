@@ -38,16 +38,19 @@ struct Function {
     virtual void set_thread_pool(ThreadPool* tp) {
         m_tp = tp;
     }
-    bool on_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
-        return _forward(inputs, outputs, context);
-    }
+    bool on_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context);
+    bool on_plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context);
     void set_node(Node* node) {
         m_owner = node;
     }
-    virtual bool plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)=0;
+    virtual bool plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)=0;
+    virtual bool plan_forward_gpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
+        return true;
+    }
     virtual bool init(const ModelParam& param, const std::string& node_name) {return true;}
 protected:
     virtual bool _forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)=0;
+    virtual bool _forward_gpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {return true;}
 public:
     template<typename F, typename...Args>
     static void _parallel_async(ThreadPool* tp, uint32_t size, F&& f, Args&&... args) {
@@ -92,8 +95,8 @@ public:
         tp->wait_work_complete();
     }
 protected:
-    Node* m_owner = nullptr;
-    ThreadPool* m_tp = nullptr;
+    Node*       m_owner = nullptr;
+    ThreadPool* m_tp    = nullptr;
 };
 
 using FuncMake = std::function<Function*()>;

@@ -13,7 +13,7 @@
 
 namespace mariana {
 
-bool PassFunc::plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
+bool PassFunc::plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     // warning on here
     Tensor tensor(inputs[0].dims(), inputs[0].device(), inputs[0].unsafe_ptr<uint8_t>(0), inputs[0].dtype());
     if (outputs.empty()) {

@@ -20,21 +20,27 @@ void mariana_llm_init() {
     init_lmodels_module();
 }
 
-void* mariana_create_lmodel_handle(LModelCategory lmodel, ExeContext& context) {
-    auto func_make = mariana::LModelHolder::search(lmodel);
+GptModel* mariana_create_lmodel(GptParams& gpt_params) {
+    auto func_make = mariana::LModelHolder::search(gpt_params.lmodel);
     LModel* model = func_make();
-    model->init(context.config_dir.c_str(), context);
-    return model;
+    ExeContext* context = new ExeContext{};
+    GptModel* gpt_model = new GptModel{};
+    model->init(gpt_params.config_dir.c_str(), gpt_params, *context);
+    gpt_model->handle = model;
+    gpt_model->context = context;
+    return gpt_model;
 }
 
-AIResult mariana_compute_lmodel_handle(void* handle, ExeContext& context) {
-    LModel* model = static_cast<LModel*>(handle);
-    return model->compute(context);
+AIResult mariana_compute_lmodel(GptModel* gpt_model) {
+    LModel* model = static_cast<LModel*>(gpt_model->handle);
+    return model->compute(*gpt_model->context);
 }
 
-void mariana_destroy_lmodel_handle(void* handle, ExeContext& context) {
-    LModel* model = static_cast<LModel*>(handle);
+void mariana_destroy_lmodel(GptModel* gpt_model) {
+    LModel* model = static_cast<LModel*>(gpt_model->handle);
     delete model;
+    delete gpt_model->context;
+    delete gpt_model;
 }
 
 void mariana_llm_finit() {

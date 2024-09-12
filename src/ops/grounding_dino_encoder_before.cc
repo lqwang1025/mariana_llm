@@ -9,6 +9,8 @@
  * 
  */
 
+#include <core/node.h>
+
 #include <utils/mariana_define.h>
 #include <models/model_param.h>
 #include <ops/grounding_dino_encoder_before.h>
@@ -19,13 +21,13 @@ namespace mariana {
 bool GroundingDinoEncoderBeforeFunc::init(const ModelParam& param, const std::string& node_name) {
     ModelParam::SafeTensorInfo sti;
     TRY_STL(sti = param.sti_map.at("model.level_embed"), return false);
-    Tensor level_embed(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_level_embed = level_embed;
+    Tensor level_embed(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_level_embed = level_embed.deepcopy();
     return true;
 }
 
 // input dims order is : [N C H W]
-bool GroundingDinoEncoderBeforeFunc::plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
+bool GroundingDinoEncoderBeforeFunc::plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     size_t level = inputs.size() / 2;
     m_spatial_shapes.size = level;
     int32_t total = 0;
@@ -34,7 +36,7 @@ bool GroundingDinoEncoderBeforeFunc::plan_forward(const tensor_list& inputs, ten
         m_spatial_shapes.widths[i] = inputs[i].dim_at(3);
         m_spatial_shapes.heights[i] = inputs[i].dim_at(2);
     }
-    context.runtime_info.anything = &m_spatial_shapes;
+    m_owner->runtime_info().anything = &m_spatial_shapes;
     if (outputs.empty()) {
         outputs.push_back(Tensor(inputs[0].device()));
         outputs.push_back(Tensor(inputs[0].device()));

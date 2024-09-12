@@ -76,6 +76,7 @@ bool GroundingDinoDecoderLayerFunc::init(const ModelParam& param, const std::str
     m_fc1_func                = new MatMulFunc{};
     m_fc2_func                = new MatMulFunc{};
     m_final_ln_func           = new LayerNormFunc{};
+    m_encoder_attn->set_node(m_owner);
     ModelParam _param = param;
     _param.act_cate = OpCategory::RELU;
     m_reference_points1->init(_param, "model.decoder.reference_points_head.layers.0");
@@ -95,11 +96,11 @@ bool GroundingDinoDecoderLayerFunc::init(const ModelParam& param, const std::str
     return true;
 }
 
-bool GroundingDinoDecoderLayerFunc::plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
+bool GroundingDinoDecoderLayerFunc::plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     Tensor reference_points = inputs[0];
     m_query_pos.try_realloc({reference_points.dim_at(0), reference_points.dim_at(1), reference_points.dim_at(2)*m_d_model/2}, reference_points.dtype());
     tensor_list _outputs = {m_reference_points1_out};
-    m_reference_points1->plan_forward({m_query_pos}, _outputs, context);
+    m_reference_points1->plan_forward_cpu({m_query_pos}, _outputs, context);
     return true;
 }
 
@@ -114,7 +115,7 @@ bool GroundingDinoDecoderLayerFunc::_forward(const tensor_list& inputs, tensor_l
         m_reference_points1->on_forward({m_query_pos}, _outputs, context);
 
         _outputs = {m_query_pos};
-        m_reference_points2->plan_forward({m_reference_points1_out}, _outputs, context);
+        m_reference_points2->plan_forward_cpu({m_reference_points1_out}, _outputs, context);
         m_reference_points2->on_forward({m_reference_points1_out}, _outputs, context);
         
         Tensor target = inputs[1];
@@ -123,18 +124,18 @@ bool GroundingDinoDecoderLayerFunc::_forward(const tensor_list& inputs, tensor_l
         m_add_func->on_forward({m_query_pos, target}, _outputs, context);
         _outputs = {m_att_out};
         Tensor __place;
-        m_self_attn->plan_forward({m_qk_out, m_qk_out, target, __place}, _outputs, context);
+        m_self_attn->plan_forward_cpu({m_qk_out, m_qk_out, target, __place}, _outputs, context);
         m_self_attn->on_forward({m_qk_out, m_qk_out, target, __place}, _outputs, context);
 
         _outputs = {m_sfatt_out_proj_out};
-        m_sfatt_out_proj->plan_forward({m_att_out}, _outputs, context);
+        m_sfatt_out_proj->plan_forward_cpu({m_att_out}, _outputs, context);
         m_sfatt_out_proj->on_forward({m_att_out}, _outputs, context);
 
         _outputs = {m_sfatt_out_proj_out};
         m_add_func->on_forward({target, m_sfatt_out_proj_out}, _outputs, context);
 
         _outputs = {m_attn_ln_out}; // res
-        m_attn_ln_func->plan_forward({m_sfatt_out_proj_out}, _outputs, context);
+        m_attn_ln_func->plan_forward_cpu({m_sfatt_out_proj_out}, _outputs, context);
         m_attn_ln_func->on_forward({m_sfatt_out_proj_out}, _outputs, context);
 
         _outputs = {m_sfatt_out_proj_out};
@@ -143,45 +144,45 @@ bool GroundingDinoDecoderLayerFunc::_forward(const tensor_list& inputs, tensor_l
         Tensor text_encoder_hidden_states = inputs[2];
         
         _outputs = {m_att_out};
-        m_encd_attn_text->plan_forward({m_sfatt_out_proj_out, text_encoder_hidden_states, text_encoder_hidden_states, __place}, _outputs, context);
+        m_encd_attn_text->plan_forward_cpu({m_sfatt_out_proj_out, text_encoder_hidden_states, text_encoder_hidden_states, __place}, _outputs, context);
         m_encd_attn_text->on_forward({m_sfatt_out_proj_out, text_encoder_hidden_states, text_encoder_hidden_states, __place}, _outputs, context);
         
         _outputs = {m_sfatt_out_proj_out};
-        m_encd_attn_text_out_proj->plan_forward({m_att_out}, _outputs, context);
+        m_encd_attn_text_out_proj->plan_forward_cpu({m_att_out}, _outputs, context);
         m_encd_attn_text_out_proj->on_forward({m_att_out}, _outputs, context);
 
         _outputs = {m_sfatt_out_proj_out};
         m_add_func->on_forward({m_sfatt_out_proj_out, m_attn_ln_out}, _outputs, context);
 
         _outputs = {m_attn_ln_out};
-        m_encd_attn_text_ln_func->plan_forward({m_sfatt_out_proj_out}, _outputs, context);
+        m_encd_attn_text_ln_func->plan_forward_cpu({m_sfatt_out_proj_out}, _outputs, context);
         m_encd_attn_text_ln_func->on_forward({m_sfatt_out_proj_out}, _outputs, context);
         // input tensors is : 1. hidden_states 2. encoder_hidden_states 3. position_embeddings 4. reference_point
         Tensor vision_encoder_hidden_states = inputs[3];
         Tensor pos_eming = m_query_pos;
         _outputs = {m_encoder_attn_out};
-        m_encoder_attn->plan_forward({m_attn_ln_out, vision_encoder_hidden_states, pos_eming, reference_points}, _outputs, context);
+        m_encoder_attn->plan_forward_cpu({m_attn_ln_out, vision_encoder_hidden_states, pos_eming, reference_points}, _outputs, context);
         m_encoder_attn->on_forward({m_attn_ln_out, vision_encoder_hidden_states, pos_eming, reference_points}, _outputs, context);
 
         _outputs = {m_encoder_attn_out};
         m_add_func->on_forward({m_encoder_attn_out, m_attn_ln_out}, _outputs, context);
         
         _outputs = {m_attn_ln_out};
-        m_encoder_attn_ln_func->plan_forward({m_encoder_attn_out}, _outputs, context);
+        m_encoder_attn_ln_func->plan_forward_cpu({m_encoder_attn_out}, _outputs, context);
         m_encoder_attn_ln_func->on_forward({m_encoder_attn_out}, _outputs, context);
 
         _outputs = {m_fc1_out};
-        m_fc1_func->plan_forward({m_attn_ln_out}, _outputs, context);
+        m_fc1_func->plan_forward_cpu({m_attn_ln_out}, _outputs, context);
         m_fc1_func->on_forward({m_attn_ln_out}, _outputs, context);
 
         _outputs = {m_encoder_attn_out};
-        m_fc2_func->plan_forward({m_fc1_out}, _outputs, context);
+        m_fc2_func->plan_forward_cpu({m_fc1_out}, _outputs, context);
         m_fc2_func->on_forward({m_fc1_out}, _outputs, context);
 
         _outputs = {m_attn_ln_out};
         m_add_func->on_forward({m_encoder_attn_out, m_attn_ln_out}, _outputs, context);
 
-        m_final_ln_func->plan_forward({m_attn_ln_out}, outputs, context);
+        m_final_ln_func->plan_forward_cpu({m_attn_ln_out}, outputs, context);
         m_final_ln_func->on_forward({m_attn_ln_out}, outputs, context);
     } else {
         MLOG(ERROR)<<"GroundingDinoDecoder reference points only support 4 dims.";

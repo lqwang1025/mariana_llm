@@ -12,7 +12,7 @@
 #include <utils/mariana_define.h>
 
 #include <models/model_param.h>
-
+#include <core/node.h>
 #include <ops/math.h>
 #include <ops/backend/cpu/matmul.h>
 #include <ops/backend/cpu/softmax.h>
@@ -34,36 +34,36 @@ bool GroundingDinoMultiscaleDeformableAttention::init(const ModelParam& param, c
     ModelParam::SafeTensorInfo sti;
     // TODO: check weight match the parameter.
     TRY_STL(sti = param.sti_map.at(node_name+".value_proj.weight"), return false);
-    Tensor value_proj_weight(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_value_proj_weight = value_proj_weight;
+    Tensor value_proj_weight(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_value_proj_weight = value_proj_weight.deepcopy();
 
     TRY_STL(sti = param.sti_map.at(node_name+".value_proj.bias"), return false);
-    Tensor value_proj_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_value_proj_bias = value_proj_bias;
+    Tensor value_proj_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_value_proj_bias = value_proj_bias.deepcopy();
 
     TRY_STL(sti = param.sti_map.at(node_name+".sampling_offsets.weight"), return false);
-    Tensor sampling_offsets_weight(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_sampling_offsets_weight = sampling_offsets_weight;
+    Tensor sampling_offsets_weight(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_sampling_offsets_weight = sampling_offsets_weight.deepcopy();
 
     TRY_STL(sti = param.sti_map.at(node_name+".sampling_offsets.bias"), return false);
-    Tensor sampling_offsets_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_sampling_offsets_bias = sampling_offsets_bias;
+    Tensor sampling_offsets_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_sampling_offsets_bias = sampling_offsets_bias.deepcopy();
 
     TRY_STL(sti = param.sti_map.at(node_name+".attention_weights.weight"), return false);
-    Tensor attention_weights_weight(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_attention_weights_weight = attention_weights_weight;
+    Tensor attention_weights_weight(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_attention_weights_weight = attention_weights_weight.deepcopy();
 
     TRY_STL(sti = param.sti_map.at(node_name+".attention_weights.bias"), return false);
-    Tensor attention_weights_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_attention_weights_bias = attention_weights_bias;
+    Tensor attention_weights_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_attention_weights_bias = attention_weights_bias.deepcopy();
 
     TRY_STL(sti = param.sti_map.at(node_name+".output_proj.weight"), return false);
-    Tensor output_proj_weight(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_output_proj_weight = output_proj_weight;
+    Tensor output_proj_weight(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_output_proj_weight = output_proj_weight.deepcopy();
 
     TRY_STL(sti = param.sti_map.at(node_name+".output_proj.bias"), return false);
-    Tensor output_proj_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_output_proj_bias = output_proj_bias;
+    Tensor output_proj_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_output_proj_bias = output_proj_bias.deepcopy();
 
     m_add_func = new AddFunc{};
     
@@ -75,13 +75,13 @@ void GroundingDinoMultiscaleDeformableAttention::set_thread_pool(ThreadPool* tp)
     m_add_func->set_thread_pool(tp);
 }
 
-bool GroundingDinoMultiscaleDeformableAttention::plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
+bool GroundingDinoMultiscaleDeformableAttention::plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     Tensor hidden_states = inputs[0];
     Tensor encoder_hidden_states = inputs[1];
     Tensor position_embeddings = inputs[2];
     tensor_list _inputs = {hidden_states, position_embeddings};
     tensor_list _outputs = {m_add_out};
-    m_add_func->plan_forward(_inputs, _outputs, context);
+    m_add_func->plan_forward_cpu(_inputs, _outputs, context);
     
     int32_t vnb = encoder_hidden_states.dim_at(0);
     int32_t vnr = encoder_hidden_states.dim_at(1);
@@ -123,7 +123,7 @@ bool GroundingDinoMultiscaleDeformableAttention::_forward(const tensor_list& inp
     _parallel_sync(m_tp, m_attention_weights_out.dim_at(0)*m_attention_weights_out.dim_at(1)*m_attention_weights_out.dim_at(2), softmax, std::ref(m_attention_weights_out),std::ref(m_attention_weights_softmax_out));
     m_attention_weights_softmax_out.reshape({m_attention_weights_softmax_out.dim_at(0), m_attention_weights_softmax_out.dim_at(1), m_n_heads, m_n_levels, m_n_points});
     
-    Tensor reference_point = inputs[3];
+    Tensor reference_point = inputs[3].shallowcopy();
     auto _shape = reference_point.dims();
     m_sampling_offsets_out.reshape({m_sampling_offsets_out.dim_at(0), m_sampling_offsets_out.dim_at(1), m_n_heads, m_n_levels, m_n_points, 2});
     if (reference_point.dim_size() == 4) { // 1 20906 4 2
@@ -136,9 +136,8 @@ bool GroundingDinoMultiscaleDeformableAttention::_forward(const tensor_list& inp
     }
     
     m_value_out.reshape({m_value_out.dim_at(0), m_value_out.dim_at(1), m_n_heads, m_d_model/m_n_heads});
-    GroundingDinoEncoderBeforeFunc::SpatialShapes* sp_shape = static_cast<GroundingDinoEncoderBeforeFunc::SpatialShapes*>(context.runtime_info.anything);
+    GroundingDinoEncoderBeforeFunc::SpatialShapes* sp_shape = static_cast<GroundingDinoEncoderBeforeFunc::SpatialShapes*>(m_owner->info_shared_nodes()[0]->runtime_info().anything);
     _parallel_sync(m_tp, m_msda_out.dim_at(0)*m_msda_out.dim_at(1), multi_scale_deformable_attention, std::ref(*sp_shape), std::ref(m_value_out), std::ref(m_attention_weights_softmax_out), std::ref(m_sampling_offsets_out), std::ref(reference_point), std::ref(m_msda_out));
-    reference_point.reshape(_shape);
     
     _parallel_sync(m_tp, m_msda_out.dim_at(0)*m_msda_out.dim_at(1), matmul, std::ref(m_msda_out), std::ref(m_output_proj_weight), std::ref(m_output_proj_bias), std::ref(outputs[0]), 1.f, 1.f, OpCategory::None);
     return true;

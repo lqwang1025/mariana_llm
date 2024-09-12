@@ -19,14 +19,19 @@
 
 #include <ops/ops.h>
 #include <core/data_type.h>
-
+#include <core/impl/allocator.h>
 #include <mariana_llm/mariana_llm.h>
 
 namespace mariana {
 
 struct ModelParam {
-    ModelParam(const ExeContext& ctx) {
-        context = &ctx;
+    ModelParam() {}
+    void release() {
+        IAllocator* allocator = get_allocator(DataOn::CPU);
+        for (auto& it : sti_map) {
+            allocator->free(it.second.data);
+        }
+        sti_map.clear();
     }
     struct SafeTensorInfo {
         TypeMeta dtype;
@@ -70,9 +75,7 @@ struct ModelParam {
     int32_t decoder_layers                    = 0;
     // permute parameter
     uint8_t           perms[4]                = {0, 0, 0, 0};
-    const ExeContext* context                 = nullptr;
     void*             any_thing               = nullptr;
-    bool              own_weight              = true; // If set true, the weigth that node own need be freed bt this node
 };
 
 } // namespace mariana

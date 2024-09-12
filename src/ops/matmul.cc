@@ -22,18 +22,18 @@ bool MatMulFunc::init(const ModelParam& param, const std::string& node_name) {
     TRACE();
     ModelParam::SafeTensorInfo sti;
     TRY_STL(sti = param.sti_map.at(node_name+".weight"), return false);
-    Tensor weight(sti.shape, DataOn::CPU, sti.data, sti.dtype, param.own_weight/*move_data*/);
-    m_weight   = weight;
+    Tensor weight(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_weight   = weight.deepcopy();
     if (param.sti_map.count(node_name+".bias")) {
         TRY_STL(sti = param.sti_map.at(node_name+".bias"), return false);
-        Tensor bias(sti.shape, DataOn::CPU, sti.data, sti.dtype, param.own_weight/*move_data*/);
-        m_bias     = bias;
+        Tensor bias(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+        m_bias     = bias.deepcopy();
     }
     m_act_cate = param.act_cate;
     return true;
 }
 
-bool MatMulFunc::plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
+bool MatMulFunc::plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     // TODO: SUPPORT other dimension, now support 3 dim only.
     if (outputs.empty()) {
         outputs.push_back(Tensor(inputs[0].device()));

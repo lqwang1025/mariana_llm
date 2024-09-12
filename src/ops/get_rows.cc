@@ -21,12 +21,12 @@ bool GetRowsFunc::init(const ModelParam& param, const std::string& node_name) {
     TRACE();
     ModelParam::SafeTensorInfo sti;
     TRY_STL(sti = param.sti_map.at(node_name+".weight"), return false);
-    Tensor weight(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_weight = weight;
+    Tensor weight(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_weight = weight.deepcopy();
     return true;
 }
 
-bool GetRowsFunc::plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
+bool GetRowsFunc::plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     if (inputs[0].dim_size() != 2) {
         MLOG(ERROR)<<"GetRows input's dimision must be 2";
         return false;

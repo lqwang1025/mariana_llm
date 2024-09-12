@@ -14,6 +14,7 @@
 #include <models/model_param.h>
 #include <utils/mariana_define.h>
 
+#include <core/node.h>
 #include <ops/layer_norm.h>
 #include <ops/matmul.h>
 #include <ops/math.h>
@@ -54,12 +55,12 @@ bool GroundingDinoFusionLayerFunc::init(const ModelParam& param, const std::stri
     return true;
 }
 
-bool GroundingDinoFusionLayerFunc::plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
+bool GroundingDinoFusionLayerFunc::plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     tensor_list _outputs = {m_ln_vision_out};
-    m_layer_norm_vision->plan_forward({inputs[0]}, _outputs, context);
+    m_layer_norm_vision->plan_forward_cpu({inputs[0]}, _outputs, context);
     _outputs = {m_ln_text_out};
-    m_layer_norm_text->plan_forward({inputs[1]}, _outputs, context);
-    m_bimhs_attn->plan_forward(inputs, outputs, context);
+    m_layer_norm_text->plan_forward_cpu({inputs[1]}, _outputs, context);
+    m_bimhs_attn->plan_forward_cpu(inputs, outputs, context);
     return true;
 }
 
@@ -127,34 +128,34 @@ bool GroundingDinoTextEnhancerLayerFunc::init(const ModelParam& param, const std
     return true;
 }
 
-bool GroundingDinoTextEnhancerLayerFunc::plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
+bool GroundingDinoTextEnhancerLayerFunc::plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     m_text_position_embedding.try_realloc({inputs[2].dim_at(0), inputs[2].dim_at(1), m_num_pos_feats}, TypeMeta::make<float>());
     tensor_list _inputs = {inputs[0], m_text_position_embedding};
     tensor_list _outputs = {m_query_key};
-    m_add_func->plan_forward(_inputs, _outputs, context);
+    m_add_func->plan_forward_cpu(_inputs, _outputs, context);
     
     _inputs = {m_query_key, m_query_key, inputs[0], inputs[1]};
     _outputs = {m_attention_output};
-    m_self_attn->plan_forward(_inputs, _outputs, context);
+    m_self_attn->plan_forward_cpu(_inputs, _outputs, context);
     
     _inputs = {m_attention_output};
     _outputs = {m_sattn_proj_output};
-    m_sattn_proj->plan_forward(_inputs, _outputs, context);
+    m_sattn_proj->plan_forward_cpu(_inputs, _outputs, context);
     
     _inputs = {m_sattn_proj_output};
     _outputs = {m_ln_before_output};
-    m_layer_norm_before->plan_forward(_inputs, _outputs, context);
+    m_layer_norm_before->plan_forward_cpu(_inputs, _outputs, context);
 
     _inputs = {m_ln_before_output};
     _outputs = {m_fc1_output};
-    m_fc1_func->plan_forward(_inputs, _outputs, context);
+    m_fc1_func->plan_forward_cpu(_inputs, _outputs, context);
 
     _inputs = {m_fc1_output};
     _outputs = {m_fc2_output};
-    m_fc2_func->plan_forward(_inputs, _outputs, context);
+    m_fc2_func->plan_forward_cpu(_inputs, _outputs, context);
 
     _inputs = {m_fc2_output};
-    m_layer_norm_after->plan_forward(_inputs, outputs, context);
+    m_layer_norm_after->plan_forward_cpu(_inputs, outputs, context);
     
     return true;
 }
@@ -162,11 +163,9 @@ bool GroundingDinoTextEnhancerLayerFunc::plan_forward(const tensor_list& inputs,
 bool GroundingDinoTextEnhancerLayerFunc::_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     float scale       = 2*M_PI;
     float temperature = 10000;
-    Tensor text_position_ids = inputs[2];
-    auto __shape = inputs[2].dims();
+    Tensor text_position_ids = inputs[2].shallowcopy();
     text_position_ids.reshape({inputs[2].dim_at(0), inputs[2].dim_at(1), 1});
     _parallel_sync(m_tp, m_text_position_embedding.total_size(), grounding_dino_get_text_enhancer_sine_pos_embed, std::ref(text_position_ids), std::ref(m_text_position_embedding), scale, temperature, false);
-    text_position_ids.reshape(__shape);
     tensor_list _inputs = {inputs[0], m_text_position_embedding};
     tensor_list _outputs = {m_query_key};
     m_add_func->on_forward(_inputs, _outputs, context);
@@ -233,6 +232,7 @@ bool GroundingDinoDeformableLayerFunc::init(const ModelParam& param, const std::
     m_fc1_func         = new MatMulFunc{};
     m_fc2_func         = new MatMulFunc{};
     m_add_func         = new AddFunc{};
+    m_gdmsd_attn_func->set_node(m_owner);
     m_attn_layer_norm->init(param, node_name+".self_attn_layer_norm");
     m_final_layer_norm->init(param, node_name+".final_layer_norm");
     ModelParam fc1_param = param;
@@ -243,18 +243,18 @@ bool GroundingDinoDeformableLayerFunc::init(const ModelParam& param, const std::
     return true;
 }
 
-bool GroundingDinoDeformableLayerFunc::plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
+bool GroundingDinoDeformableLayerFunc::plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     tensor_list _inputs = {inputs[0], inputs[0], inputs[1]};
     tensor_list _outputs = {m_gdmsd_attn_t};
-    m_gdmsd_attn_func->plan_forward(_inputs, _outputs, context);
+    m_gdmsd_attn_func->plan_forward_cpu(_inputs, _outputs, context);
 
     _outputs = {m_attn_layer_norm_t};
-    m_attn_layer_norm->plan_forward({m_gdmsd_attn_t}, _outputs, context);
+    m_attn_layer_norm->plan_forward_cpu({m_gdmsd_attn_t}, _outputs, context);
     
     _outputs = {m_fc1_t};
-    m_fc1_func->plan_forward({m_attn_layer_norm_t}, _outputs, context);
+    m_fc1_func->plan_forward_cpu({m_attn_layer_norm_t}, _outputs, context);
 
-    m_fc2_func->plan_forward({m_fc1_t}, outputs, context);
+    m_fc2_func->plan_forward_cpu({m_fc1_t}, outputs, context);
     return true;
 }
 
@@ -302,6 +302,7 @@ bool GroundingDinoEncoderLayerFunc::init(const ModelParam& param, const std::str
     m_fusion_func           = new GroundingDinoFusionLayerFunc{};
     m_text_enhancer_func    = new GroundingDinoTextEnhancerLayerFunc{};
     m_deformable_layer_func = new GroundingDinoDeformableLayerFunc{};
+    m_deformable_layer_func->set_node(m_owner);
     m_fusion_func->init(param, node_name+".fusion_layer");
     m_text_enhancer_func->init(param, node_name+".text_enhancer_layer");
     m_deformable_layer_func->init(param, node_name+".deformable_layer");
@@ -309,7 +310,7 @@ bool GroundingDinoEncoderLayerFunc::init(const ModelParam& param, const std::str
 }
 
 void GroundingDinoEncoderLayerFunc::_get_reference_points(ExeContext& context, Tensor& reference_points) {
-    GroundingDinoEncoderBeforeFunc::SpatialShapes* sp_shape = static_cast<GroundingDinoEncoderBeforeFunc::SpatialShapes*>(context.runtime_info.anything);
+    GroundingDinoEncoderBeforeFunc::SpatialShapes* sp_shape = static_cast<GroundingDinoEncoderBeforeFunc::SpatialShapes*>(m_owner->info_shared_nodes()[0]->runtime_info().anything);
     uint32_t offset = 0;
     for (uint32_t i = 0; i < sp_shape->size; ++i) {
         for (uint32_t h = 0; h < sp_shape->heights[i]; ++h) {
@@ -324,7 +325,7 @@ void GroundingDinoEncoderLayerFunc::_get_reference_points(ExeContext& context, T
     }
 }
 
-bool GroundingDinoEncoderLayerFunc::plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
+bool GroundingDinoEncoderLayerFunc::plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     // inputs' order is [ vision_features, vision_pos_embed, text_features,
     //                    att_mask_pass, position_embedding_pass, reference_points] The outputs' order same as inputs
     if (inputs.size() == 5) {
@@ -336,7 +337,7 @@ bool GroundingDinoEncoderLayerFunc::plan_forward(const tensor_list& inputs, tens
     
     tensor_list _inputs = {inputs[0], inputs[2]};
     tensor_list _outputs = {m_vision_features, m_vision_fused_attn, m_text_features, m_text_fused_attn};
-    m_fusion_func->plan_forward(_inputs, _outputs, context);
+    m_fusion_func->plan_forward_cpu(_inputs, _outputs, context);
 
     if (outputs.empty()) {
         outputs = {Tensor(inputs[0].device()), inputs[1], Tensor(inputs[0].device()), inputs[3], inputs[4], m_reference_points};
@@ -344,11 +345,11 @@ bool GroundingDinoEncoderLayerFunc::plan_forward(const tensor_list& inputs, tens
 
     _inputs = {_outputs[2], inputs[3], inputs[4]};
     _outputs = {outputs[2]};
-    m_text_enhancer_func->plan_forward(_inputs, _outputs, context);
+    m_text_enhancer_func->plan_forward_cpu(_inputs, _outputs, context);
     
     _inputs = {inputs[0], inputs[1]};
     _outputs = {outputs[0]};
-    m_deformable_layer_func->plan_forward(_inputs, _outputs, context);
+    m_deformable_layer_func->plan_forward_cpu(_inputs, _outputs, context);
     return true;
 }
 

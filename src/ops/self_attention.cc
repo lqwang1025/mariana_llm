@@ -30,30 +30,30 @@ bool SelfAttentionFunc::init(const ModelParam& param, const std::string& node_na
     m_n_head = param.n_head;
     ModelParam::SafeTensorInfo sti;
     TRY_STL(sti = param.sti_map.at(node_name+".query.weight"), return false);
-    Tensor q_weight(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
+    Tensor q_weight(sti.shape, DataOn::CPU, sti.data, sti.dtype);
     TRY_STL(sti = param.sti_map.at(node_name+".query.bias"), return false);
-    Tensor q_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
+    Tensor q_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype);
     
     TRY_STL(sti = param.sti_map.at(node_name+".key.weight"), return false);
-    Tensor k_weight(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
+    Tensor k_weight(sti.shape, DataOn::CPU, sti.data, sti.dtype);
     TRY_STL(sti = param.sti_map.at(node_name+".key.bias"), return false);
-    Tensor k_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
+    Tensor k_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype);
     
     TRY_STL(sti = param.sti_map.at(node_name+".value.weight"), return false);
-    Tensor v_weight(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
+    Tensor v_weight(sti.shape, DataOn::CPU, sti.data, sti.dtype);
     TRY_STL(sti = param.sti_map.at(node_name+".value.bias"), return false);
-    Tensor v_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_q_weight = q_weight;
-    m_q_bias   = q_bias;
-    m_k_weight = k_weight;
-    m_k_bias   = k_bias;
-    m_v_weight = v_weight;
-    m_v_bias   = v_bias;
+    Tensor v_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_q_weight = q_weight.deepcopy();
+    m_q_bias   = q_bias.deepcopy();
+    m_k_weight = k_weight.deepcopy();
+    m_k_bias   = k_bias.deepcopy();
+    m_v_weight = v_weight.deepcopy();
+    m_v_bias   = v_bias.deepcopy();
     
     return true;
 }
 
-bool SelfAttentionFunc::plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
+bool SelfAttentionFunc::plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     if (outputs.empty()) {
         outputs.push_back(Tensor(inputs[0].device()));
     }

@@ -18,7 +18,7 @@ namespace mariana {
 
 struct SwinPatchMergingFunc : public Function {
     bool init(const ModelParam& param, const std::string& node_name)override;
-    bool plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+    bool plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
     int32_t step = 1;
 protected:
     bool _forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;

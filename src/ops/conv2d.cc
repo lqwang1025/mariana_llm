@@ -23,11 +23,11 @@ bool Conv2dFunc::init(const ModelParam& param, const std::string& node_name) {
     ModelParam::SafeTensorInfo sti;
     // TODO: check weight match the parameter.
     TRY_STL(sti = param.sti_map.at(node_name+".weight"), return false);
-    Tensor weight(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
+    Tensor weight(sti.shape, DataOn::CPU, sti.data, sti.dtype);
     TRY_STL(sti = param.sti_map.at(node_name+".bias"), return false);
-    Tensor bias(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_weight            = weight;
-    m_bias              = bias;
+    Tensor bias(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_weight            = weight.deepcopy();
+    m_bias              = bias.deepcopy();
     m_act_cate          = param.act_cate;
     m_output_trans      = param.conv_output_trans;
     m_param.groups      = static_cast<uint8_t>(param.groups);
@@ -39,13 +39,18 @@ bool Conv2dFunc::init(const ModelParam& param, const std::string& node_name) {
     m_param.padding[1]  = static_cast<uint8_t>(param.padding[1]); // l
     m_param.padding[2]  = static_cast<uint8_t>(param.padding[2]); // b
     m_param.padding[3]  = static_cast<uint8_t>(param.padding[3]); // r
+    m_param.kernel[0]   = static_cast<uint16_t>(m_weight.dim_at(0)); // oc
+    m_param.kernel[1]   = static_cast<uint16_t>(m_weight.dim_at(1)); // ic
+    m_param.kernel[2]   = static_cast<uint16_t>(m_weight.dim_at(2)); // kh
+    m_param.kernel[3]   = static_cast<uint16_t>(m_weight.dim_at(3)); // kw
     return true;
 }
 
-bool Conv2dFunc::plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
+bool Conv2dFunc::plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     if (outputs.empty()) {
         outputs.push_back(Tensor(inputs[0].device()));
     }
+    m_weight.reshape({m_param.kernel[0], m_param.kernel[1], m_param.kernel[2], m_param.kernel[3]});
     //  input dim order: [n, c, h, w]
     const int32_t ih = inputs[0].dim_at(2);
     const int32_t iw = inputs[0].dim_at(3);
@@ -84,17 +89,12 @@ bool Conv2dFunc::_forward(const tensor_list& inputs, tensor_list& outputs, ExeCo
     // _parallel_sync(m_tp, per.total_size(), permute, std::ref(per), std::ref(outputs[0]), perms);
     // m_weight.reshape(wshape);
     if (true == m_output_trans) {
-        auto col_shape = m_im2col.dims();
-        auto wshape = m_weight.dims();
         m_weight.reshape({m_weight.dim_at(0), m_weight.dim_at(1)*m_weight.dim_at(2)*m_weight.dim_at(3)});
         m_im2col.reshape({m_im2col.dim_at(0), m_im2col.dim_at(1)*m_im2col.dim_at(2),
                 m_im2col.dim_at(3)});
         _parallel_sync(m_tp, m_im2col.dim_at(0)*m_im2col.dim_at(1), matmul, std::ref(m_im2col),
                        std::ref(m_weight), std::ref(m_bias), std::ref(outputs[0]), 1.f, 1.f, m_act_cate);
-        m_im2col.reshape(col_shape);
-        m_weight.reshape(wshape);
     } else {
-        auto wshape = m_weight.dims();
         m_weight.reshape({1, m_weight.dim_at(0), m_weight.dim_at(1)*m_weight.dim_at(2)*m_weight.dim_at(3)});
         for (int32_t n = 0; n < outputs[0].dim_at(0); ++n) {
             Tensor input({m_im2col.dim_at(1)*m_im2col.dim_at(2), m_im2col.dim_at(3)},
@@ -106,7 +106,6 @@ bool Conv2dFunc::_forward(const tensor_list& inputs, tensor_list& outputs, ExeCo
                             input, std::ref(m_bias), output, 1.f, 1.f, m_act_cate);
         }
         m_tp->wait_work_complete();
-        m_weight.reshape(wshape);
     } // false == m_output_trans
     
     return true;

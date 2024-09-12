@@ -16,7 +16,7 @@
 
 namespace mariana {
 
-bool AddFunc::plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
+bool AddFunc::plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     if (outputs.empty()) {
         outputs.push_back(Tensor(inputs[0].device()));
     }
@@ -31,7 +31,7 @@ bool AddFunc::_forward(const tensor_list& inputs, tensor_list& outputs, ExeConte
     return true;
 }
 
-bool MulFunc::plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
+bool MulFunc::plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     if (outputs.empty()) {
         outputs.push_back(Tensor(inputs[0].device()));
     }

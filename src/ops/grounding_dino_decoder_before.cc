@@ -12,8 +12,8 @@
 #include <cmath>
 #include <cfloat>
 
+#include <core/node.h>
 #include <core/tensor_utils.h>
-#include <absl/strings/str_format.h>
 
 #include <core/data_type.h>
 #include <models/model_param.h>
@@ -30,6 +30,8 @@
 #include <ops/grounding_dino_encoder_before.h>
 #include <ops/grounding_dino_decoder_before.h>
 #include <ops/backend/cpu/grounding_dino_utils.h>
+
+#include <absl/strings/str_format.h>
 
 namespace mariana {
 
@@ -68,20 +70,17 @@ bool GroundingDinoDecoderBeforeFunc::init(const ModelParam& param, const std::st
         
     ModelParam::SafeTensorInfo sti;
     TRY_STL(sti = param.sti_map.at("model.query_position_embeddings.weight"), return false);
-    Tensor query_embeds(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
-    m_query_embeds = query_embeds;
+    Tensor query_embeds(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_query_embeds = query_embeds.deepcopy();
     if (m_query_embeds.dim_size() == 2) {
         m_query_embeds.reshape({1, m_query_embeds.dim_at(0), m_query_embeds.dim_at(1)});
     }
     m_decoder_layers = param.decoder_layers;
-    ModelParam __param = param;
     for (int32_t i = 0; i < param.decoder_layers; ++i) {
-        if (i != 0) {
-            __param.own_weight = false;
-        }
         GroundingDinoDecoderLayerFunc* layer = new GroundingDinoDecoderLayerFunc{};
+        layer->set_node(m_owner);
         std::string name = absl::StrFormat("model.decoder.layers.%d", i);
-        layer->init(__param, name);
+        layer->init(param, name);
         m_gd_decoder_layers.push_back(layer);
     }
     
@@ -123,23 +122,23 @@ void GroundingDinoDecoderBeforeFunc::set_thread_pool(ThreadPool* tp) {
     }
 }
 
-bool GroundingDinoDecoderBeforeFunc::plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
+bool GroundingDinoDecoderBeforeFunc::plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     m_output_proposals.try_realloc({inputs[0].dim_at(0), inputs[0].dim_at(1), m_n_levels}, inputs[0].dtype());
     m_object_query.try_realloc(inputs[0].dims(), inputs[0].dtype());
     tensor_list _outputs = {m_enc_output};
-    m_enc_output_class_embed_func->plan_forward({m_object_query}, _outputs, context);
+    m_enc_output_class_embed_func->plan_forward_cpu({m_object_query}, _outputs, context);
     
     _outputs = {m_enc_output_norm};
-    m_enc_output_norm_func->plan_forward({m_enc_output}, _outputs, context);
+    m_enc_output_norm_func->plan_forward_cpu({m_enc_output}, _outputs, context);
 
     _outputs = {m_enc_output_bbox_embed0_output};
-    m_enc_output_bbox_embed_func0->plan_forward({m_enc_output_norm}, _outputs, context);
+    m_enc_output_bbox_embed_func0->plan_forward_cpu({m_enc_output_norm}, _outputs, context);
 
     _outputs = {m_enc_output_bbox_embed1_output};
-    m_enc_output_bbox_embed_func1->plan_forward({m_enc_output_bbox_embed0_output}, _outputs, context);
+    m_enc_output_bbox_embed_func1->plan_forward_cpu({m_enc_output_bbox_embed0_output}, _outputs, context);
 
     _outputs = {m_enc_outputs_coord_logits};
-    m_enc_output_bbox_embed_func2->plan_forward({m_enc_output_bbox_embed1_output}, _outputs, context);
+    m_enc_output_bbox_embed_func2->plan_forward_cpu({m_enc_output_bbox_embed1_output}, _outputs, context);
 
     m_vt_output.try_realloc({m_enc_output_norm.dim_at(0), m_enc_output_norm.dim_at(1), inputs[2].dim_at(1)}, inputs[0].dtype());
 
@@ -150,21 +149,21 @@ bool GroundingDinoDecoderBeforeFunc::plan_forward(const tensor_list& inputs, ten
     Tensor reference_points = m_topk_coords_logits;
     for (auto layer : m_gd_decoder_layers) {
         _outputs = {};
-        layer->plan_forward({reference_points, m_query_embeds, inputs[2], inputs[0]}, _outputs, context);
+        layer->plan_forward_cpu({reference_points, m_query_embeds, inputs[2], inputs[0]}, _outputs, context);
     }
     return true;
 }
 
 bool GroundingDinoDecoderBeforeFunc::_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
-    _parallel_sync(m_tp, inputs[0].dim_at(1), generate_encoder_output_proposals, std::ref(context), std::ref(inputs[0]), std::ref(m_output_proposals), std::ref(m_object_query));
+    GroundingDinoEncoderBeforeFunc::SpatialShapes* sp_shape = static_cast<GroundingDinoEncoderBeforeFunc::SpatialShapes*>(m_owner->info_shared_nodes()[0]->runtime_info().anything);
+    _parallel_sync(m_tp, inputs[0].dim_at(1), generate_encoder_output_proposals, std::ref(*sp_shape), std::ref(inputs[0]), std::ref(m_output_proposals), std::ref(m_object_query));
     tensor_list _outputs = {m_enc_output};
     m_enc_output_class_embed_func->on_forward({m_object_query}, _outputs, context);
     
     _outputs = {m_enc_output_norm};
     m_enc_output_norm_func->on_forward({m_enc_output}, _outputs, context);
     
-    auto _shape = inputs[2].dims();
-    Tensor weight = inputs[2];
+    Tensor weight = inputs[2].shallowcopy();
     weight.reshape({inputs[2].dim_at(0)*inputs[2].dim_at(1), inputs[2].dim_at(2)});
     Tensor __bias;
     _parallel_async(m_tp, m_enc_output_norm.dim_at(0)*m_enc_output_norm.dim_at(1), matmul, std::ref(m_enc_output_norm), std::ref(weight), std::ref(__bias), std::ref(m_vt_output), 1.f, 1.f, OpCategory::None);
@@ -179,7 +178,6 @@ bool GroundingDinoDecoderBeforeFunc::_forward(const tensor_list& inputs, tensor_
     _outputs = {m_enc_outputs_coord_logits};
     m_enc_output_bbox_embed_func2->on_forward({m_enc_output_bbox_embed1_output}, _outputs, context);
     m_tp->wait_work_complete();
-    weight.reshape(_shape);
 
     _parallel_async(m_tp, m_vt_output.dim_at(0)*m_vt_output.dim_at(1), max_last_dim_spilt, std::ref(m_vt_output), std::ref(m_topk_logits));
     
@@ -210,19 +208,19 @@ bool GroundingDinoDecoderBeforeFunc::_forward(const tensor_list& inputs, tensor_
         hidden_states = m_decoder_out;
         
         _outputs = {outputs[2*i+0]};
-        m_hidden_stats_ln_func->plan_forward({hidden_states}, _outputs, context);
+        m_hidden_stats_ln_func->plan_forward_cpu({hidden_states}, _outputs, context);
         m_hidden_stats_ln_func->on_forward({hidden_states}, _outputs, context);
         
         _outputs = {m_enc_output_bbox_embed0_output};
-        m_dec_output_bbox_embed_func0->plan_forward({hidden_states}, _outputs, context);
+        m_dec_output_bbox_embed_func0->plan_forward_cpu({hidden_states}, _outputs, context);
         m_dec_output_bbox_embed_func0->on_forward({hidden_states}, _outputs, context);
         
         _outputs = {m_enc_output_bbox_embed1_output};
-        m_dec_output_bbox_embed_func1->plan_forward({m_enc_output_bbox_embed0_output}, _outputs, context);
+        m_dec_output_bbox_embed_func1->plan_forward_cpu({m_enc_output_bbox_embed0_output}, _outputs, context);
         m_dec_output_bbox_embed_func1->on_forward({m_enc_output_bbox_embed0_output}, _outputs, context);
 
         _outputs = {m_enc_outputs_coord_logits};
-        m_dec_output_bbox_embed_func2->plan_forward({m_enc_output_bbox_embed1_output}, _outputs, context);
+        m_dec_output_bbox_embed_func2->plan_forward_cpu({m_enc_output_bbox_embed1_output}, _outputs, context);
         m_dec_output_bbox_embed_func2->on_forward({m_enc_output_bbox_embed1_output}, _outputs, context);
         if (i != m_decoder_layers-1) {
             outputs[2*(i+1)+1].try_realloc(m_topk_coords_logits.dims(), m_topk_coords_logits.dtype());

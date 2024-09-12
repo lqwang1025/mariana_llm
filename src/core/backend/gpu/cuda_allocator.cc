@@ -27,14 +27,18 @@ void CudaIAllocator::m_free_impl(void* data) {
     free_cuda(data);
 }
 
+void CudaIAllocator::_memcpy(void* dst, const void* src, size_t size, CudaMemcoryContext cmc) {
+    if (cmc.sync) {
+        checkCudaErrors(cudaMemcpy(dst, src, size, cmc.kind));
+    } else {
+        checkCudaErrors(cudaMemcpyAsync(dst, src, size, cmc.kind, cmc.stream));
+    }
+}
+
 void CudaIAllocator::memcpy(void* dst, const void* src, size_t size, void* extra) {
     MCHECK_NOTNULL(extra);
     CudaMemcoryContext* cmc = static_cast<CudaMemcoryContext*>(extra);
-    if (cmc->sync) {
-        checkCudaErrors(cudaMemcpy(dst, src, size, cmc->kind));
-    } else {
-        checkCudaErrors(cudaMemcpyAsync(dst, src, size, cmc->kind, cmc->stream));
-    }
+    _memcpy(dst, src, size, *cmc);
 }
 
 void CudaIAllocator::memset(void* dst, int32_t c, size_t size, void* extra) {

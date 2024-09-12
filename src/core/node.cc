@@ -20,8 +20,20 @@
 
 namespace mariana {
 
-void Node::set_thread_pool(ThreadPool* tp) {
-    m_op->set_thread_pool(tp);
+Node::~Node() {
+    if (m_tp != nullptr)
+        delete m_tp;
+}
+
+void Node::set_thread_pool(size_t num_of_threads) {
+    m_tp = new ThreadPool(num_of_threads);
+    m_op->set_thread_pool(m_tp);
+}
+
+void Node::wait_for_done() {
+    absl::MutexLock lck(&m_mutex);
+    absl::Condition complete(&m_complete);
+    m_mutex.Await(complete);
 }
 
 bool Node::init(const OpCategory& opcate, const ModelParam& param, const std::vector<NodeSharedPtr>& inodes, const std::string& name) {
@@ -36,26 +48,23 @@ bool Node::init(const OpCategory& opcate, const ModelParam& param, const std::ve
     return m_op->init(param, name);
 }
 
-bool Node::plan_forward(const tensor_list& inputs, ExeContext& context) {
+void Node::forward(ExeContext& context) {
+    absl::MutexLock lck(&m_mutex);
+    m_complete = false;
     MLOG_IF(ERROR, !m_op)<<"m_op null";
-    m_op->plan_forward(inputs, m_otensors, context);
-    return true;
-}
-
-void Node::forward(const tensor_list& inputs, ExeContext& context) {
-    plan_forward(inputs, context);
     {
         AUTOTIME(op_to_string(m_opcate).c_str());
-        bool ok = m_op->on_forward(inputs, m_otensors, context);
+        bool ok = m_op->on_plan_forward(m_itensors, m_otensors, context);
+        ok = ok && m_op->on_forward(m_itensors, m_otensors, context);
         MLOG_IF(ERROR, !ok)<<"Node:"<<op_to_string(m_opcate)<<" forward failed";
     }
-    
     if (get_env("MAR_LAYER_RES_DUMP") == "1") {
         for (auto& tensor : m_otensors) {
             DUMP_TENSOR_TO_BIN(tensor, op_to_string(m_opcate));
             DUMP_TENSOR_TO_TXT(tensor, op_to_string(m_opcate));
         }
     }
+    m_complete = true;
 }
 
 } // namespace mariana

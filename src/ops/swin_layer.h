@@ -32,7 +32,7 @@ struct SwinLayerFunc : public Function {
     ~SwinLayerFunc();
     virtual void set_thread_pool(ThreadPool* tp) override;
     bool init(const ModelParam& param, const std::string& node_name)override;
-    bool plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+    bool plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 protected:
     bool _forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
     bool _maybe_pad(uint32_t& pad_right, uint32_t& pad_bottom, uint32_t height, uint32_t width);

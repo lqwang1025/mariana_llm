@@ -20,7 +20,7 @@ struct SelfAttentionFunc;
 
 struct GroundingDinoBiMHSAttentionFunc : public Function {
     bool init(const ModelParam& param, const std::string& node_name)override;
-    bool plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+    bool plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 protected:
     bool _forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 private:

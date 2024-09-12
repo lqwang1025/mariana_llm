@@ -31,6 +31,7 @@ public:
     virtual void memcpy(void* dst, const void* src, size_t size, void* extra=nullptr)override;
     virtual void memset(void* dst, int32_t c, size_t size, void* extra=nullptr) override;
 protected:
+    void _memcpy(void* dst, const void* src, size_t size, CudaMemcoryContext cmc);
     void* m_alloc_impl(size_t size) override;
     void m_free_impl(void* data) override;
 };

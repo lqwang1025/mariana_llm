@@ -26,29 +26,37 @@ enum class LModelCategory : int16_t {
     GroundingDINO = 2
 };
 
-struct RuntimeInfo {
-    uint32_t feature_height = 0;
-    uint32_t feature_width  = 0;
-    void*    anything       = nullptr;
-    std::vector<uint32_t> img_hws;
+struct PostProcessInfo {
+    float box_threshold = 0.f;
+    float text_threshold = 0.f;
 };
 
 struct ExeContext {
     std::string prompt{""};
     int32_t max_text_len{0};
+    AIImage image;
+    PostProcessInfo post_info;
+};
+
+struct GptParams {
     int32_t n_threads{-1};
     std::string config_dir{""};
-    AIImage image;
-    RuntimeInfo runtime_info;
+    DataOn backend = DataOn::NONE;
+    LModelCategory lmodel = LModelCategory::None;
+};
+
+struct GptModel {
+    ExeContext* context = nullptr;
+    void* handle = nullptr;
 };
 
 void mariana_llm_init();
 
-void* mariana_create_lmodel_handle(LModelCategory lmodel, ExeContext& context);
+GptModel* mariana_create_lmodel(GptParams& gpt_params);
 
-AIResult mariana_compute_lmodel_handle(void* handle, ExeContext& context);
+AIResult mariana_compute_lmodel(GptModel* gpt_model);
 
-void mariana_destroy_lmodel_handle(void* handle, ExeContext& context);
+void mariana_destroy_lmodel(GptModel* gpt_model);
 
 void mariana_llm_finit();
 

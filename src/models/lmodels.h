@@ -26,6 +26,7 @@
 namespace mariana {
 
 struct ExeContext;
+struct GptParams;
 class Graph;
 class Tokenizer;
 class LmodelHolder;
@@ -39,10 +40,11 @@ public:
     LModel() {}
     virtual ~LModel() {}
     virtual AIResult compute(ExeContext& context)=0;
-    virtual bool make_graph(const char* dir_path, ExeContext& context)=0;
-    virtual bool init(const char* dir_path, ExeContext& context) {
+    virtual bool make_graph(const char* dir_path, GptParams& gpt_params, ExeContext& context)=0;
+    virtual bool init(const char* dir_path, GptParams& gpt_params, ExeContext& context) {
         TRACE();
-        bool ok = make_graph(dir_path, context);
+        bool ok = make_graph(dir_path, gpt_params, context);
+        ok = ok && _backend_setup(gpt_params, context);
         MLOG_IF(ERROR, !ok)<<"Lmodel init failed with:"<<dir_path;
         return ok;
     }
@@ -52,6 +54,7 @@ protected:
                            [](ModelParam::SafeTensorInfo&sti, ModelParam& param, const std::string&key)->void {
                                param.sti_map[key] = sti;
                            });
+    bool _backend_setup(GptParams& gpt_params, ExeContext& context);
     bool _load_config(const char* config_file, AnyMap& any_map);
 protected:
     std::shared_ptr<Graph>     m_graph;

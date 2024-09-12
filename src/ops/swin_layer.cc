@@ -23,6 +23,7 @@
 #include <core/impl/allocator.h>
 
 #include <models/model_param.h>
+#include <core/node.h>
 #include <core/function.h>
 #include <core/tensor_utils.h>
 
@@ -63,12 +64,13 @@ bool SwinLayerFunc::init(const ModelParam& param, const std::string& node_name) 
     
     ModelParam::SafeTensorInfo sti;
     TRY_STL(sti = param.sti_map.at(node_name+".attention.self.relative_position_bias_table"), return false); // relative_position_index
-    Tensor mask_table(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
+    Tensor mask_table(sti.shape, DataOn::CPU, sti.data, sti.dtype);
     TRY_STL(sti = param.sti_map.at(node_name+".attention.self.relative_position_index"), return false);
-    Tensor mask_index(sti.shape, DataOn::CPU, sti.data, sti.dtype, true/*move_data*/);
+    Tensor mask_index(sti.shape, DataOn::CPU, sti.data, sti.dtype);
     mask_index.reshape({1, mask_index.dim_at(0)*mask_index.dim_at(1)});
     Tensor mask_out(mask_index.device());
     mask_out.try_realloc({1, mask_index.dim_at(1), mask_table.dim_at(1)}, mask_table.dtype());
+    
     ThreadPool* tp = new ThreadPool(ThreadPool::default_num_threads());
     _parallel_sync(tp, mask_index.total_size(), get_rows, std::ref(mask_index),
                    std::ref(mask_table), std::ref(mask_out));
@@ -78,7 +80,7 @@ bool SwinLayerFunc::init(const ModelParam& param, const std::string& node_name) 
     mask.try_realloc({1, mask_table.dim_at(1), m_param.window_size*m_param.window_size, m_param.window_size*m_param.window_size}, mask_out.dtype());
     m_mask = mask;
     uint8_t perms[4] = {0, 3, 1, 2};
-    _parallel_sync(tp, mask_out.total_size(), permute4, std::ref(mask_out), std::ref(mask), perms);
+    _parallel_sync(tp, mask_out.total_size(), permute4, std::ref(mask_out), std::ref(m_mask), perms);
     delete tp;
     return true;
 }
@@ -86,8 +88,8 @@ bool SwinLayerFunc::init(const ModelParam& param, const std::string& node_name) 
 void SwinLayerFunc::_create_attn_mask(const tensor_list& inputs, ExeContext& context) {
     int32_t window_size = m_param.window_size;
     int32_t shift_size  = m_param.shift_size;
-    uint32_t paded_h    = context.runtime_info.feature_height+m_pad_bottom;
-    uint32_t paded_w    = context.runtime_info.feature_width+m_pad_right;
+    uint32_t paded_h    = m_owner->info_shared_nodes()[0]->runtime_info().feature_height+m_pad_bottom;
+    uint32_t paded_w    = m_owner->info_shared_nodes()[0]->runtime_info().feature_width+m_pad_right;
     uint32_t nh_w       = paded_h/window_size;
     uint32_t nw_w       = paded_w/window_size;
     Tensor attn_mask(inputs[0].device());
@@ -187,21 +189,24 @@ bool SwinLayerFunc::_maybe_pad(uint32_t& pad_right, uint32_t& pad_bottom, uint32
     }
 }
 
-bool SwinLayerFunc::plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
+bool SwinLayerFunc::plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     tensor_list __outputs = {m_lnb_out};
-    m_layer_norm_before->plan_forward(inputs, __outputs, context);
+    m_layer_norm_before->plan_forward_cpu(inputs, __outputs, context);
+
     int32_t dim1 = m_lnb_out.dim_at(0);
-    int32_t dim2 = context.runtime_info.feature_height/m_param.window_size;
-    int32_t dim3 = context.runtime_info.feature_width/m_param.window_size;
+    int32_t dim2 = m_owner->info_shared_nodes()[0]->runtime_info().feature_height/m_param.window_size;
+    int32_t dim3 = m_owner->info_shared_nodes()[0]->runtime_info().feature_width/m_param.window_size;
     int32_t dim4 = m_param.window_size;
     int32_t dim5 = m_param.window_size;
     int32_t dim6 = m_lnb_out.dim_at(2);
-    bool yes = _maybe_pad(m_pad_right, m_pad_bottom, context.runtime_info.feature_height, context.runtime_info.feature_width);
+    bool yes = _maybe_pad(m_pad_right, m_pad_bottom, m_owner->info_shared_nodes()[0]->runtime_info().feature_height, m_owner->info_shared_nodes()[0]->runtime_info().feature_width);
     if (yes) {
-        m_pad_out     = Tensor(m_lnb_out.device());
+        if (m_pad_out.total_size() == 0) {
+            m_pad_out     = Tensor(m_lnb_out.device());
+        }
         m_pad_out.try_realloc({m_lnb_out.dim_at(0),
-                static_cast<int32_t>(context.runtime_info.feature_height+m_pad_bottom),
-                static_cast<int32_t>(context.runtime_info.feature_width+m_pad_right),
+                static_cast<int32_t>(m_owner->info_shared_nodes()[0]->runtime_info().feature_height+m_pad_bottom),
+                static_cast<int32_t>(m_owner->info_shared_nodes()[0]->runtime_info().feature_width+m_pad_right),
                 m_lnb_out.dim_at(2)}, m_lnb_out.dtype());
         dim2 = m_pad_out.dim_at(1)/m_param.window_size;
         dim3 = m_pad_out.dim_at(2)/m_param.window_size;
@@ -209,16 +214,19 @@ bool SwinLayerFunc::plan_forward(const tensor_list& inputs, tensor_list& outputs
         dim5 = m_param.window_size;
         dim6 = m_pad_out.dim_at(3);
     }
-    
-    m_permute_out = Tensor(m_pad_out.device());
+    if (m_permute_out.total_size() == 0) {
+        m_permute_out = Tensor(m_pad_out.device());
+    }
     m_permute_out.try_realloc({dim2*dim3, dim4*dim5, dim6}, m_pad_out.dtype());
+    
     __outputs = {m_self_att_out};
     tensor_list __inputs = {m_permute_out};
-    m_self_att->plan_forward(__inputs, __outputs, context);
+    m_self_att->plan_forward_cpu(__inputs, __outputs, context);
     m_permute_out.reshape({dim1, dim2, dim3, dim4, dim5, dim6});
+    
     __inputs  = {m_self_att_out};
     __outputs = {m_self_att_omm_out};
-    m_self_att_omm->plan_forward(__inputs, __outputs, context);
+    m_self_att_omm->plan_forward_cpu(__inputs, __outputs, context);
     if (m_param.shift_size > 0) {
         _create_attn_mask(inputs, context);
     }
@@ -231,8 +239,8 @@ bool SwinLayerFunc::_forward(const tensor_list& inputs, tensor_list& outputs, Ex
     
     m_layer_norm_before->_forward(inputs, __outputs, context);
     m_lnb_out.reshape({inputs[0].dim_at(0),
-            static_cast<int32_t>(context.runtime_info.feature_height),
-            static_cast<int32_t>(context.runtime_info.feature_width),
+            static_cast<int32_t>(m_owner->info_shared_nodes()[0]->runtime_info().feature_height),
+            static_cast<int32_t>(m_owner->info_shared_nodes()[0]->runtime_info().feature_width),
             inputs[0].dim_at(2)});
     // 1.1 pad maybe
     Tensor __route;
@@ -251,7 +259,7 @@ bool SwinLayerFunc::_forward(const tensor_list& inputs, tensor_list& outputs, Ex
         __outputs = {m_roll_out};
         m_roll_func->param.dims   = {1, 2};
         m_roll_func->param.shifts = {-m_param.shift_size, -m_param.shift_size};
-        m_roll_func->plan_forward(__inputs, __outputs, context);
+        m_roll_func->plan_forward_cpu(__inputs, __outputs, context);
         m_roll_func->_forward(__inputs, __outputs, context);
         __route = m_roll_out;
     }
@@ -273,8 +281,8 @@ bool SwinLayerFunc::_forward(const tensor_list& inputs, tensor_list& outputs, Ex
     __outputs = {m_self_att_omm_out};
     m_self_att_omm->_forward(__inputs, __outputs, context);
     // 4. windows split
-    int32_t padh = m_pad_bottom+context.runtime_info.feature_height;
-    int32_t padw = m_pad_right+context.runtime_info.feature_width;
+    int32_t padh = m_pad_bottom+m_owner->info_shared_nodes()[0]->runtime_info().feature_height;
+    int32_t padw = m_pad_right+m_owner->info_shared_nodes()[0]->runtime_info().feature_width;
     m_self_att_omm_out.reshape({1, padh/m_param.window_size, padw/m_param.window_size, m_param.window_size, m_param.window_size, m_self_att_omm_out.dim_at(2)});
     
     m_permute_out.reshape({m_self_att_omm_out.dim_at(0), m_self_att_omm_out.dim_at(1),
@@ -290,7 +298,7 @@ bool SwinLayerFunc::_forward(const tensor_list& inputs, tensor_list& outputs, Ex
         __outputs = {m_roll_out};
         m_roll_func->param.dims   = {1, 2};
         m_roll_func->param.shifts = {m_param.shift_size, m_param.shift_size};
-        m_roll_func->plan_forward(__inputs, __outputs, context);
+        m_roll_func->plan_forward_cpu(__inputs, __outputs, context);
         m_roll_func->_forward(__inputs, __outputs, context);
         __route = m_roll_out;
     } else {
@@ -300,24 +308,24 @@ bool SwinLayerFunc::_forward(const tensor_list& inputs, tensor_list& outputs, Ex
     if (m_pad_bottom != 0 || m_pad_right != 0) {
         // 4.1 slice to ori feature map
         m_slice_func->param.starts = {0, 0};
-        m_slice_func->param.ends = {(int32_t)context.runtime_info.feature_height,
-            (int32_t)context.runtime_info.feature_width};
+        m_slice_func->param.ends = {(int32_t)m_owner->info_shared_nodes()[0]->runtime_info().feature_height,
+            (int32_t)m_owner->info_shared_nodes()[0]->runtime_info().feature_width};
         m_slice_func->param.axes = {1, 2};
         m_slice_func->param.steps = {1, 1};
         __inputs = {__route};
         __outputs = {m_lnb_out};
-        m_slice_func->plan_forward(__inputs, __outputs, context);
+        m_slice_func->plan_forward_cpu(__inputs, __outputs, context);
         m_slice_func->_forward(__inputs, __outputs, context);
         m_lnb_out.reshape({m_lnb_out.dim_at(0), m_lnb_out.dim_at(1)*m_lnb_out.dim_at(2), m_lnb_out.dim_at(3)});
         // 4.2 shortcut
         __inputs = {m_lnb_out, inputs[0]};
-        m_add_func->plan_forward(__inputs, outputs, context);
+        m_add_func->plan_forward_cpu(__inputs, outputs, context);
         m_add_func->_forward(__inputs, outputs, context);
     } else {
         // 4.2 shortcut
         __route.reshape({__route.dim_at(0), __route.dim_at(1)*__route.dim_at(2), __route.dim_at(3)});
         __inputs = {__route, inputs[0]};
-        m_add_func->plan_forward(__inputs, outputs, context);
+        m_add_func->plan_forward_cpu(__inputs, outputs, context);
         m_add_func->_forward(__inputs, outputs, context);
     }
     return true;

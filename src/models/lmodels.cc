@@ -144,4 +144,15 @@ bool LModel::_load_config(const char* config_json, AnyMap& any_map) {
     return true;
 }
 
+bool LModel::_backend_setup(GptParams& gpt_params, ExeContext& context) {
+    if (gpt_params.backend == DataOn::CPU) {
+        return true;
+    } else if (gpt_params.backend == DataOn::GPU) {
+        return m_graph->gpu_distribute();
+    } else {
+        MLOG(ERROR)<<"unsupport backend:"<<device_string(gpt_params.backend);
+        return false;
+    }
+}
+
 } // namespace mariana

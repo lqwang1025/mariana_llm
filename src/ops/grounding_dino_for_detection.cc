@@ -41,16 +41,14 @@ bool GroundingDinoForDetectionFunc::init(const ModelParam& param, const std::str
     m_bbox_embed_func1 = new MatMulFunc{};
     m_bbox_embed_func2 = new MatMulFunc{};
     ModelParam __param = param;
-    __param.own_weight = false;
     __param.act_cate = OpCategory::RELU;
     m_bbox_embed_func0->init(__param, "bbox_embed.0.layers.0");
     m_bbox_embed_func1->init(__param, "bbox_embed.0.layers.1");
-    __param.act_cate = OpCategory::None;
-    m_bbox_embed_func2->init(__param, "bbox_embed.0.layers.2");
+    m_bbox_embed_func2->init(param, "bbox_embed.0.layers.2");
     return true;
 }
 
-bool GroundingDinoForDetectionFunc::plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
+bool GroundingDinoForDetectionFunc::plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     if (outputs.empty()) { // 1.delta_bbox 2.scores 3.outputs_class
         outputs.resize(3);
     }
@@ -59,11 +57,11 @@ bool GroundingDinoForDetectionFunc::plan_forward(const tensor_list& inputs, tens
         Tensor hidden_states = inputs[2*i+0];
         Tensor reference = inputs[2*i+1];
         tensor_list _outputs = {m_bbox_embed_out0};
-        m_bbox_embed_func0->plan_forward({hidden_states}, _outputs, context);
+        m_bbox_embed_func0->plan_forward_cpu({hidden_states}, _outputs, context);
         _outputs = {m_bbox_embed_out1};
-        m_bbox_embed_func1->plan_forward({m_bbox_embed_out0}, _outputs, context);
+        m_bbox_embed_func1->plan_forward_cpu({m_bbox_embed_out0}, _outputs, context);
         _outputs = {outputs[0]};
-        m_bbox_embed_func2->plan_forward({m_bbox_embed_out1}, _outputs, context);
+        m_bbox_embed_func2->plan_forward_cpu({m_bbox_embed_out1}, _outputs, context);
         outputs[2].try_realloc({hidden_states.dim_at(0), hidden_states.dim_at(1), enc_text_hidden_states.dim_at(1)}, enc_text_hidden_states.dtype());
         break;
     }
@@ -72,8 +70,7 @@ bool GroundingDinoForDetectionFunc::plan_forward(const tensor_list& inputs, tens
 }
 
 bool GroundingDinoForDetectionFunc::_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
-    Tensor enc_text_hidden_states = inputs[2*m_decoder_layers];
-    auto _shape = enc_text_hidden_states.dims();
+    Tensor enc_text_hidden_states = inputs[2*m_decoder_layers].shallowcopy();
     enc_text_hidden_states.reshape({enc_text_hidden_states.dim_at(0)*enc_text_hidden_states.dim_at(1), enc_text_hidden_states.dim_at(2)});
     for (int32_t i = m_decoder_layers-1; i < m_decoder_layers; ++i) {
         Tensor hidden_states = inputs[2*i+0];
@@ -94,17 +91,13 @@ bool GroundingDinoForDetectionFunc::_forward(const tensor_list& inputs, tensor_l
         
         Tensor scores = outputs[1];
         _parallel_async(m_tp, outputs[2].dim_at(0)*outputs[2].dim_at(1), max_last_dim_spilt, std::ref(outputs[2]), std::ref(scores));
-        int32_t h = 1, w = 1;
-        if (context.runtime_info.img_hws.size() == 2) {
-            h = context.runtime_info.img_hws[0];
-            w = context.runtime_info.img_hws[1];
-        }
+        int32_t h = context.image.height;
+        int32_t w = context.image.width;
         
         _parallel_async(m_tp, outputs[0].dim_at(0)*outputs[0].dim_at(1), bbox_center_to_corners, std::ref(outputs[0]), h, w, std::ref(outputs[0]));
         
         m_tp->wait_work_complete();
     }
-    enc_text_hidden_states.reshape(_shape);
     return true;
 }
 

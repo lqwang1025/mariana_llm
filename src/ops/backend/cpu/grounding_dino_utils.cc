@@ -18,7 +18,6 @@
 
 #include <mariana_llm/mariana_llm.h>
 
-#include <ops/grounding_dino_encoder_before.h>
 #include <ops/backend/cpu/grounding_dino_utils.h>
 
 namespace mariana {
@@ -52,8 +51,7 @@ void grounding_dino_encoder_before(SchedParam sched_param, const tensor_list& in
     }
 }
 
-void generate_encoder_output_proposals(SchedParam sched_param, ExeContext& context, const Tensor& enc_output, Tensor& output_proposals, Tensor& object_query) {
-    GroundingDinoEncoderBeforeFunc::SpatialShapes& sp_shape = *static_cast<GroundingDinoEncoderBeforeFunc::SpatialShapes*>(context.runtime_info.anything);
+void generate_encoder_output_proposals(SchedParam sched_param, GroundingDinoEncoderBeforeFunc::SpatialShapes& sp_shape, const Tensor& enc_output, Tensor& output_proposals, Tensor& object_query) {
     IAllocator* allocator = get_allocator(enc_output.device());
     for (uint32_t i = sched_param.this_thread_begin_index(); i < sched_param.this_thread_end_index(); ++i) {
         uint32_t total  = 0;
@@ -130,8 +128,58 @@ void bbox_center_to_corners(SchedParam sched_param, const Tensor& src, int32_t i
     }
 }
 
-void grounding_dino_pre_process(SchedParam sched_param, const Tensor& src, const std::vector<float>& means, const std::vector<float>& stds, Tensor& out) {
+void grounding_dino_pre_process(SchedParam sched_param, const Tensor& src, const std::vector<float>& means, const std::vector<float>& stds, const float& rescale_factor, const int32_t& pad_r, const int32_t& pad_b, Tensor& out) {
+    int32_t C = out.dim_at(1);
+    int32_t H = out.dim_at(2);
+    int32_t W = out.dim_at(3);
+    
+    int32_t src_h = src.dim_at(1);
+    int32_t src_w = src.dim_at(2);
+    float scale_x = static_cast<float>(src_w) / static_cast<float>(W-pad_r);
+    float scale_y = static_cast<float>(src_h) / static_cast<float>(H-pad_b);
+
     for (uint32_t i = sched_param.this_thread_begin_index(); i < sched_param.this_thread_end_index(); ++i) {
+        uint32_t idx = i;
+        uint32_t w = idx % W;
+        idx /= W;
+        uint32_t h = idx % H;
+        idx /= H;
+        uint32_t c = idx % C;
+        idx /= C;
+        uint32_t n = idx;
+        if (H-pad_b <= h || W-pad_r <= w) {
+            *out.unsafe_ptr<float>(i) = 0.f;
+        } else {
+            float fx = (static_cast<float>(w)+0.5f)*scale_x - 0.5f;
+            int32_t sx = static_cast<int32_t>(std::floor(fx));
+            fx -= sx;
+            
+            if (sx < 0) {
+                fx = 0, sx = 0;
+            }
+
+            if (sx + 1 >= src_w) {
+                fx = 0, sx = src_w-2;
+            }
+            
+            int16_t cbufx[2];
+            cbufx[0] = static_cast<int16_t>((1.f - fx)*2048);
+            cbufx[1] = 2048-cbufx[0];
+            
+            float fy = (static_cast<float>(h)+0.5f)*scale_y - 0.5f;
+            int32_t sy = static_cast<int32_t>(std::floor(fy));
+            fy -= sy;
+            sy = MIN(sy, src_h-2);
+            sy = MAX(sy, 0);
+            int16_t cbufy[2];
+            cbufy[0] = static_cast<int16_t>((1.f - fy)*2048);
+            cbufy[1] = 2048 - cbufy[0];
+            uint8_t pixel_val = (src.data_at<uint8_t>(n*src.stride_at(0)+sy*src.stride_at(1)+sx*src.stride_at(2)+c)*cbufx[0]*cbufy[0]+
+                                 src.data_at<uint8_t>(n*src.stride_at(0)+(sy+1)*src.stride_at(1)+sx*src.stride_at(2)+c)*cbufx[0]*cbufy[1]+
+                                 src.data_at<uint8_t>(n*src.stride_at(0)+sy*src.stride_at(1)+(sx+1)*src.stride_at(2)+c)*cbufx[1]*cbufy[0]+
+                                 src.data_at<uint8_t>(n*src.stride_at(0)+(sy+1)*src.stride_at(1)+(sx+1)*src.stride_at(2)+c)*cbufx[1]*cbufy[1])>>22;
+            *out.unsafe_ptr<float>(i) = (static_cast<float>(pixel_val)*rescale_factor-means[c])/stds[c];
+        }
     }
 }
 

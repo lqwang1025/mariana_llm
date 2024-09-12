@@ -9,6 +9,7 @@
  * 
  */
 
+#include <core/node.h>
 #include <models/model_param.h>
 #include <ops/backend/cpu/permute.h>
 #include <ops/layer_norm.h>
@@ -31,15 +32,15 @@ bool SwinStageOutputFunc::init(const ModelParam& param, const std::string& node_
     return true;
 }
 
-bool SwinStageOutputFunc::plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
+bool SwinStageOutputFunc::plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     tensor_list __outputs = {m_ln_out};
-    m_layer_norm->plan_forward(inputs, __outputs, context);
+    m_layer_norm->plan_forward_cpu(inputs, __outputs, context);
     if (outputs.empty()) {
         outputs.push_back(Tensor(inputs[0].device()));
     }
     outputs[0].try_realloc({m_ln_out.dim_at(0), m_ln_out.dim_at(2),
-            (int32_t)context.runtime_info.feature_height,
-            (int32_t)context.runtime_info.feature_width}, inputs[0].dtype());
+            (int32_t)m_owner->info_shared_nodes()[0]->runtime_info().feature_height,
+            (int32_t)m_owner->info_shared_nodes()[0]->runtime_info().feature_width}, inputs[0].dtype());
     return true;
 }
 
@@ -47,8 +48,8 @@ bool SwinStageOutputFunc::_forward(const tensor_list& inputs, tensor_list& outpu
     tensor_list __outputs = {m_ln_out};
     m_layer_norm->on_forward(inputs, __outputs, context);
     uint8_t perms[4] = {0, 3, 1, 2};
-    m_ln_out.reshape({m_ln_out.dim_at(0), (int32_t)context.runtime_info.feature_height,
-            (int32_t)context.runtime_info.feature_width, m_ln_out.dim_at(2)});
+    m_ln_out.reshape({m_ln_out.dim_at(0), (int32_t)m_owner->info_shared_nodes()[0]->runtime_info().feature_height,
+            (int32_t)m_owner->info_shared_nodes()[0]->runtime_info().feature_width, m_ln_out.dim_at(2)});
     _parallel_sync(m_tp, m_ln_out.total_size(), permute4, std::ref(m_ln_out), std::ref(outputs[0]), perms);
     return true;
 }

@@ -2,7 +2,7 @@
  *        (C) COPYRIGHT Daniel Wang Limited.
  *             ALL RIGHTS RESERVED
  *
- * File       : core/cuda/helper_cuda.h
+ * File       : core/backend/gpu/helper_cuda.h
  * Authors    : wangliquan@cc-SYS-7048GR-TR
  * Create Time: 2023-08-01:15:43:49
  * Description:

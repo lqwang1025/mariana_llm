@@ -27,7 +27,7 @@ struct GroundingDinoFusionLayerFunc : public Function {
     ~GroundingDinoFusionLayerFunc();
     void set_thread_pool(ThreadPool* tp) override;
     bool init(const ModelParam& param, const std::string& node_name)override;
-    bool plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+    bool plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 protected:
     bool _forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 private:
@@ -43,7 +43,7 @@ struct GroundingDinoTextEnhancerLayerFunc : public Function {
     ~GroundingDinoTextEnhancerLayerFunc();
     void set_thread_pool(ThreadPool* tp) override;
     bool init(const ModelParam& param, const std::string& node_name)override;
-    bool plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+    bool plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 protected:
     bool _forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 private:
@@ -71,7 +71,7 @@ struct GroundingDinoDeformableLayerFunc : public Function {
     ~GroundingDinoDeformableLayerFunc();
     void set_thread_pool(ThreadPool* tp) override;
     bool init(const ModelParam& param, const std::string& node_name)override;
-    bool plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+    bool plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 protected:
     bool _forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 private:
@@ -91,7 +91,7 @@ struct GroundingDinoEncoderLayerFunc : public Function {
     ~GroundingDinoEncoderLayerFunc();
     void set_thread_pool(ThreadPool* tp) override;
     bool init(const ModelParam& param, const std::string& node_name)override;
-    bool plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+    bool plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 protected:
     bool _forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 private:

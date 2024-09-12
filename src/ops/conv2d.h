@@ -22,11 +22,12 @@ struct ConvParam {
     uint8_t strides[2]  = {1, 1}; // x, y
     uint8_t padding[4]  = {0, 0, 0, 0}; // t,l,b,r
     uint8_t dilation[2] = {1, 1}; // x, y
+    uint16_t kernel[4] = {0, 0, 0, 0}; // [oc, ic, kh, kw]
 };
 
 struct Conv2dFunc : public Function {
     bool init(const ModelParam& param, const std::string& node_name)override;
-    bool plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+    bool plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 protected:
     bool _forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 private:

@@ -16,7 +16,6 @@ namespace mariana {
 
 bool Function::on_plan_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
 #if defined(MLM_USE_CUDA)
-    //plan_forward_cpu(inputs, outputs, context);
     return plan_forward_gpu(inputs, outputs, context);
 #else
     return plan_forward_cpu(inputs, outputs, context);
@@ -25,8 +24,7 @@ bool Function::on_plan_forward(const tensor_list& inputs, tensor_list& outputs, 
 
 bool Function::on_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
 #if defined(MLM_USE_CUDA)
-    //return _forward_gpu(inputs, outputs, context);
-    return _forward(inputs, outputs, context);
+    return _forward_gpu(inputs, outputs, context);
 #else
     return _forward(inputs, outputs, context);
 #endif

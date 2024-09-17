@@ -9,6 +9,8 @@
  * 
  */
 
+#include <cuda_runtime.h>
+
 #include <utils/mariana_define.h>
 
 #include <core/backend/gpu/cuda_common.h>
@@ -47,6 +49,7 @@ static CUDADeviceInfo cuda_init() {
     for (int32_t id = 0; id < info.device_count; ++id) {
         cudaDeviceProp prop;
         checkCudaErrors(cudaGetDeviceProperties(&prop, id));
+        MLOG_IF(FATAL, checkCudaCapabilities(prop.major, prop.minor)==false);
         MVLOG(2)<<"Device-"<<id<<":"<<prop.name<<", compute capability:"
                 <<prop.major<<"."<<prop.minor;
         info.devices[id].nsm   = prop.multiProcessorCount;

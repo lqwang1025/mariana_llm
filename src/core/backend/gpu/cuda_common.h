@@ -66,6 +66,8 @@ void cuda_set_device(int32_t device);
 
 int32_t cuda_get_device();
 
+dim3 get_cuda_gridsize(size_t n, size_t cuda_blk);
+
 } // namespace mariana
 
 #endif /* __CORE_BACKEND_GPU_CUDA_COMMON_H__ */

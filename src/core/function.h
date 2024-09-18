@@ -64,6 +64,7 @@ public:
             sched_param.n_thread = thread_size+remainder;
             for(size_t i = 0; i < thread_size; ++i) {
                 sched_param.i_thread = i;
+                sched_param.id_thread = i;
                 tp->submit(func, sched_param);
             }
             MVLOG(1)<<"Thread info-->data size:"<<size<<" thread size:"
@@ -73,6 +74,7 @@ public:
                 sched_param.n_offset = blk_size*thread_size;
                 for (uint64_t ir = 0; ir < remainder; ++ir) {
                     sched_param.i_thread = ir;
+                    sched_param.id_thread = ir+thread_size;
                     tp->submit(func, sched_param);
                 }
                 MVLOG(1)<<"    -->remainder data size:"<<size<<" thread size:"
@@ -83,6 +85,7 @@ public:
             sched_param.n_chunk = 1;
             for(size_t i = 0; i < remainder; ++i) {
                 sched_param.i_thread = i;
+                sched_param.id_thread = i;
                 tp->submit(func, sched_param);
             }
             MVLOG(1)<<"Thread info-->data size:"<<size<<" thread size:"

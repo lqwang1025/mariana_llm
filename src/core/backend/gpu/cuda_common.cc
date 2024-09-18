@@ -23,12 +23,13 @@ void CUDAContext::stream_sync(cudaStream_t stream) {
     checkCudaErrors(cudaStreamSynchronize(stream));
 }
 
-cudaStream_t CUDAContext::stream() {
-    if (streams == nullptr) {
+cudaStream_t CUDAContext::stream(uint32_t i) {
+    uint32_t __i = i%MLLM_CUDA_MAX_STREAMS;
+    if (streams[__i] == nullptr) {
         cuda_set_device(device);
-        checkCudaErrors(cudaStreamCreateWithFlags(&streams, cudaStreamNonBlocking));
+        checkCudaErrors(cudaStreamCreateWithFlags(&streams[__i], cudaStreamNonBlocking));
     }
-    return streams;
+    return streams[__i];
 }
 
 cublasHandle_t CUDAContext::cublas_handle() {

@@ -71,10 +71,14 @@ AIResult GroundingDINO::compute(ExeContext& context) {
         {"model.backbone.conv_encoder.model.embeddings.patch_embeddings.projection", {m_image_tensor}}
     };
     tensor_list otensors = m_graph->forward(key_tensor_map, context);
+    AIResult result;
+    if (otensors.empty()) {
+        return result;
+    }
     Tensor bbox = otensors[0];
     Tensor scores = otensors[1];
     Tensor probs = otensors[2];
-    AIResult result;
+    
     _post_process(bbox, scores, probs, token, result, context);
     return result;
 }

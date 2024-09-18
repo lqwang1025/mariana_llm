@@ -17,30 +17,38 @@
 #include <cuda_runtime_api.h>
 
 #define MLLM_CUDA_MAX_DEVICES       16
+#define MLLM_CUDA_MAX_STREAMS       8
 
 namespace mariana {
 
 struct CUDAContext {
     int32_t device = -1;
     std::string name;
-    cudaStream_t streams = nullptr;
+    cudaStream_t streams[MLLM_CUDA_MAX_STREAMS] = {nullptr};
     cublasHandle_t cublas_handles = nullptr;
     explicit CUDAContext(int32_t device) :
         device(device),
         name("cuda:"+std::to_string(device)) {
-        stream();
         cublas_handle();
+        for (uint32_t i = 0; i < MLLM_CUDA_MAX_STREAMS; ++i) {
+            stream(i);
+        }
     }
     ~CUDAContext() {
-        if (streams != nullptr) {
-            cudaStreamDestroy(streams);
+        for (int32_t i = 0; i < MLLM_CUDA_MAX_STREAMS; ++i) {
+            if (streams[i] != nullptr) {
+                cudaStreamDestroy(streams[i]);
+            }
         }
         if (cublas_handles != nullptr) {
             cublasDestroy(cublas_handles);
         }
     }
     void stream_sync(cudaStream_t stream);
-    cudaStream_t stream();
+    cudaStream_t stream() {
+        return stream(0);
+    }
+    cudaStream_t stream(uint32_t i);
     cublasHandle_t cublas_handle();
 };
 

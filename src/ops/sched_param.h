@@ -17,10 +17,11 @@
 namespace mariana {
 
 struct SchedParam { 
-    uint64_t n_thread = 0;
-    uint64_t i_thread = 0;
-    uint64_t n_offset = 0;
-    uint64_t n_chunk  = 0;
+    uint64_t n_thread  = 0;
+    uint64_t i_thread  = 0;
+    uint32_t id_thread = 0;
+    uint64_t n_offset  = 0;
+    uint64_t n_chunk   = 0;
 
     uint64_t this_thread_begin_index() {
         return n_offset+i_thread*n_chunk;

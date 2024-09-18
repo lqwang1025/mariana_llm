@@ -32,7 +32,7 @@ bool GetRowsFunc::plan_forward_gpu(const tensor_list& inputs, tensor_list& outpu
     int32_t nr = inputs[0].dim_at(1);
     int32_t ne = m_weight.dim_at(1);
     if (outputs.empty()) {
-        outputs.push_back(DataOn::GPU);
+        outputs.push_back(Tensor(DataOn::GPU));
     }
     outputs[0].try_realloc({nb, nr, ne}, m_weight.dtype());
     return true;

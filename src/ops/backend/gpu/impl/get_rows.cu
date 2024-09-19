@@ -8,11 +8,9 @@
  * Description:
  * 
  */
-#include <cstdio>
 
 #include <utils/mariana_define.h>
 #include <ops/backend/gpu/impl/get_rows.h>
-#include <core/backend/gpu/cuda_allocator.h>
 
 namespace mariana {
 

@@ -21,6 +21,12 @@ struct AddFunc : public Function {
 protected:
     friend class SwinLayerFunc;
     bool _forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+#if defined(MLM_USE_CUDA)
+public:
+    bool plan_forward_gpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+protected:
+    bool _forward_gpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+#endif
 };
 
 struct MulFunc : public Function {

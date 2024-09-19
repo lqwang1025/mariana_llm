@@ -14,7 +14,6 @@
 
 #include <core/node.h>
 #include <core/backend/gpu/cuda_common.h>
-#include <core/backend/gpu/cuda_allocator.h>
 
 namespace mariana {
 

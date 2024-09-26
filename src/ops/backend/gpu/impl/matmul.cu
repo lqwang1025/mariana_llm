@@ -13,8 +13,16 @@
 
 namespace mariana {
 
+__device__ float __mm_gelu_single_kernel(float x) {
+    return 0.5f*x*(1.f+erff(sqrtf(0.5f)*x));
+}
+
+__device__ float __mm_relu_single_kernel(float x) {
+    return MAX(x, 0.f);
+}
+
 template<typename T>
-__global__ void __matmul_kernel(const T* input, const T* weight, const T* bias, T* out, uint32_t oh, uint32_t ow, uint32_t k, uint32_t bias_size, T aplha, T beta, OpCategory act_cate) {
+__global__ void __matmul_kernel(const T* input, const T* weight, const T* bias, T* out, uint32_t oh, uint32_t ow, uint32_t k, uint32_t bias_size, T alpha, T beta, OpCategory act_cate) {
     int32_t index = (blockIdx.x + blockIdx.y * gridDim.x) * blockDim.x + threadIdx.x;
     if (index >= oh*ow) return;
     const int32_t w_idx = index % ow;
@@ -29,7 +37,13 @@ __global__ void __matmul_kernel(const T* input, const T* weight, const T* bias, 
     } else if (oh == bias_size) {
         _bias = bias[h_idx];
     }
-    out[index] = alpha*sum+beta*_bias;
+    if (act_cate == OpCategory::GELU) {
+        out[index] = __mm_gelu_single_kernel(alpha*sum+beta*_bias);
+    } else if (act_cate == OpCategory::RELU) {
+        out[index] = __mm_relu_single_kernel(alpha*sum+beta*_bias);
+    } else {
+        out[index] = alpha*sum+beta*_bias;
+    }
 }
 
 void matmul(SchedParam sched_param, const Tensor& input, const Tensor& weight, const Tensor& bias, Tensor& out, float alpha, float beta, OpCategory act_cate, CUDAContext* cuda_ctx) {

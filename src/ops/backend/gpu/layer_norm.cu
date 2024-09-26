@@ -50,7 +50,7 @@ bool LayerNormFunc::_forward_gpu(const tensor_list& inputs, tensor_list& outputs
     if (input.dim_size() == 4) {
         input.reshape({input.dim_at(0), input.dim_at(1)*input.dim_at(2), input.dim_at(3)});
     }
-    _parallel_sync(m_tp, input.dim_at(0)*input.dim_at(1), layer_normlization, std::ref(input),
+    _parallel_sync(m_tp, input.dim_at(0), layer_normlization, std::ref(input),
                    std::ref(m_weight), std::ref(m_bias), std::ref(norm_param), std::ref(outputs[0]), cuda_ctx);
     return true;
 }

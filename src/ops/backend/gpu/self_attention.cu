@@ -95,8 +95,7 @@ bool SelfAttentionFunc::_forward_gpu(const tensor_list& inputs, tensor_list& out
     m_tp->wait_work_complete();
     if (pos_mask.total_size() == 0) {
         if (attn_mask.total_size() == 0) {
-            _parallel_sync(m_tp, m_q_o.dim_at(0)*m_q_o.dim_at(1), mhs_attention_batch_split, std::ref(m_q_o),
-                           std::ref(m_k_o), std::ref(m_v_o), std::ref(outputs[0]), m_n_head, m_attention_head_size);
+            _parallel_sync(m_tp, m_q_o.dim_at(0), mhs_attention, std::ref(m_q_o), std::ref(m_k_o), std::ref(m_v_o), std::ref(outputs[0]), m_n_head, m_attention_head_size, cuda_ctx);
         } else {
             _parallel_sync(m_tp, m_q_o.dim_at(0), mhs_mask_attention, std::ref(m_q_o), std::ref(m_k_o), std::ref(m_v_o), std::ref(attn_mask), std::ref(outputs[0]), m_n_head, m_attention_head_size, cuda_ctx);
         }

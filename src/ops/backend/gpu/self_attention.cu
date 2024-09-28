@@ -13,6 +13,7 @@
 
 #include <ops/self_attention.h>
 #include <ops/backend/gpu/impl/matmul.h>
+#include <ops/backend/gpu/impl/mhs_attention.h>
 
 #include <core/node.h>
 #include <core/backend/gpu/cuda_common.h>
@@ -92,6 +93,16 @@ bool SelfAttentionFunc::_forward_gpu(const tensor_list& inputs, tensor_list& out
     _parallel_async(m_tp, key.dim_at(0), matmul, std::ref(key), std::ref(m_k_weight), std::ref(m_k_bias), std::ref(m_k_o), 1.f, 1.f, OpCategory::None, cuda_ctx);
     _parallel_async(m_tp, value.dim_at(0), matmul, std::ref(value), std::ref(m_v_weight), std::ref(m_v_bias), std::ref(m_v_o), 1.f, 1.f, OpCategory::None, cuda_ctx);
     m_tp->wait_work_complete();
+    if (pos_mask.total_size() == 0) {
+        if (attn_mask.total_size() == 0) {
+            _parallel_sync(m_tp, m_q_o.dim_at(0)*m_q_o.dim_at(1), mhs_attention_batch_split, std::ref(m_q_o),
+                           std::ref(m_k_o), std::ref(m_v_o), std::ref(outputs[0]), m_n_head, m_attention_head_size);
+        } else {
+            _parallel_sync(m_tp, m_q_o.dim_at(0), mhs_mask_attention, std::ref(m_q_o), std::ref(m_k_o), std::ref(m_v_o), std::ref(attn_mask), std::ref(outputs[0]), m_n_head, m_attention_head_size, cuda_ctx);
+        }
+    } else {
+        MLOG(INFO)<<"TODO";
+    }
     cuda_ctx->stream_sync(cuda_ctx->stream(0));
     Tensor q = m_q_o.cpu();
     DUMP_TENSOR_TO_TXT(q, "q_o");
@@ -99,6 +110,8 @@ bool SelfAttentionFunc::_forward_gpu(const tensor_list& inputs, tensor_list& out
     DUMP_TENSOR_TO_TXT(k, "k_o");
     Tensor v = m_v_o.cpu();
     DUMP_TENSOR_TO_TXT(v, "v_o");
+    Tensor out = outputs[0].cpu();
+    DUMP_TENSOR_TO_TXT(out, "out");
     exit(0);
     return true;
 }

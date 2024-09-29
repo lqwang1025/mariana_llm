@@ -100,10 +100,6 @@ bool SelfAttentionFunc::_forward(const tensor_list& inputs, tensor_list& outputs
     _parallel_async(m_tp, value.dim_at(0)*value.dim_at(1), matmul, std::ref(value),
                     std::ref(m_v_weight), std::ref(m_v_bias), std::ref(m_v_o), 1.f, 1.f, OpCategory::None);
     m_tp->wait_work_complete();
-    DUMP_TENSOR_TO_TXT(m_q_o, "m_q_o");
-    DUMP_TENSOR_TO_TXT(m_k_o, "m_k_o");
-    DUMP_TENSOR_TO_TXT(m_v_o, "m_v_o");
-    exit(0);
     // _parallel_sync(m_tp, m_n_head, mhs_mask_attention_head_split, std::ref(m_q_o),
     //                std::ref(m_k_o), std::ref(m_v_o), std::ref(inputs[1]), std::ref(outputs[0]),
     //                m_n_head, m_attention_head_size);

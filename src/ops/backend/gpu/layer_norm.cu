@@ -18,7 +18,7 @@ namespace mariana {
 
 bool LayerNormFunc::plan_forward_gpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     if (inputs.size() != 1) {
-        MLOG(ERROR)<<"LayerNorm input's dimision must be 1";
+        MLOG(ERROR)<<"LayerNorm input's size must be 1 now:"<<inputs.size();
         return false;
     }
     CUDAContext* cuda_ctx = static_cast<CUDAContext*>(m_owner->backend_ctx()->context);

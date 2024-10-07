@@ -39,7 +39,7 @@ bool MatMulFunc::plan_forward_gpu(const tensor_list& inputs, tensor_list& output
 
 bool MatMulFunc::_forward_gpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     CUDAContext* cuda_ctx = static_cast<CUDAContext*>(m_owner->backend_ctx()->context);
-    _parallel_async(m_tp, inputs[0].dim_at(0), matmul, std::ref(inputs[0]), std::ref(m_weight), std::ref(m_bias), std::ref(outputs[0]), 1.f, 1.f, m_act_cate, cuda_ctx);
+    _parallel_sync(m_tp, inputs[0].dim_at(0), matmul, std::ref(inputs[0]), std::ref(m_weight), std::ref(m_bias), std::ref(outputs[0]), 1.f, 1.f, m_act_cate, cuda_ctx);
     return true;
 }
 

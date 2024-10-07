@@ -64,6 +64,7 @@ void matmul(SchedParam sched_param, const Tensor& input, const Tensor& weight, c
         }
         __matmul_kernel<float><<<get_cuda_gridsize(ooffset, CUDA_MATMUL_BLOCK_SIZE),
             CUDA_MATMUL_BLOCK_SIZE, 0, cuda_ctx->stream(sched_param.id_thread)>>>(input_ptr, weight_ptr, bias_ptr, out_ptr, oh, ow, nok, bias.total_size(), alpha, beta, act_cate);
+        cuda_ctx->stream_sync(cuda_ctx->stream(sched_param.id_thread));
     } else {
         MLOG(FATAL)<<"Matmul unsupport datatype:"<<out.dtype().name();
     }

@@ -185,6 +185,7 @@ void mhs_mask_attention(SchedParam sched_param, const Tensor& Q, const Tensor& K
         float* out_ptr  = out.unsafe_ptr<float>(sched_param.this_thread_begin_index()*o_offset);
         __mhs_mask_attention_float32_kernel<<<get_cuda_gridsize(QT, CUDA_ATTN_BLOCK_SIZE),
             CUDA_ATTN_BLOCK_SIZE, 0, cuda_ctx->stream(sched_param.id_thread)>>>(q_ptr, k_ptr, v_ptr, mask_ptr, QT, KT, VT, n_head, head_size, Q.stride_at(1), K.stride_at(1), mask.dim_at(1), mask.stride_at(1), mask.stride_at(2), V.stride_at(1), out.stride_at(1), out_ptr);
+        cuda_ctx->stream_sync(cuda_ctx->stream(sched_param.id_thread));
     } else {
         MLOG(FATAL)<<"Mhs attention unsupport datatype:"<<out.dtype().name();
     }
@@ -205,6 +206,7 @@ void mhs_attention(SchedParam sched_param, const Tensor& Q, const Tensor& K, con
         float* out_ptr  = out.unsafe_ptr<float>(sched_param.this_thread_begin_index()*o_offset);
         __mhs_attention_float32_kernel<<<get_cuda_gridsize(QT, CUDA_ATTN_BLOCK_SIZE),
             CUDA_ATTN_BLOCK_SIZE, 0, cuda_ctx->stream(sched_param.id_thread)>>>(q_ptr, k_ptr, v_ptr, QT, KT, VT, n_head, head_size, Q.stride_at(1), K.stride_at(1), V.stride_at(1), out.stride_at(1), out_ptr);
+        cuda_ctx->stream_sync(cuda_ctx->stream(sched_param.id_thread));
     } else {
         MLOG(FATAL)<<"Mhs attention unsupport datatype:"<<out.dtype().name();
     }
@@ -229,6 +231,7 @@ void mhs_swin_mask_attention(SchedParam sched_param, const Tensor& Q, const Tens
         float* out_ptr   = out.unsafe_ptr<float>(sched_param.this_thread_begin_index()*o_offset);
         __mhs_swin_mask_attention_float32_kernel<<<get_cuda_gridsize(QT, CUDA_ATTN_BLOCK_SIZE),
             CUDA_ATTN_BLOCK_SIZE, 0, cuda_ctx->stream(sched_param.id_thread)>>>(q_ptr, k_ptr, v_ptr, mask_ptr, pmask_ptr, QT, KT, VT, n_head, head_size, Q.stride_at(1), K.stride_at(1), attn_mask.stride_at(2), pos_mask.dim_at(1), pos_mask.stride_at(1), pos_mask.stride_at(2), V.stride_at(1), out.stride_at(1), out_ptr);
+        cuda_ctx->stream_sync(cuda_ctx->stream(sched_param.id_thread));
     } else {
         MLOG(FATAL)<<"MHS SWIN attention unsupport datatype:"<<out.dtype().name();
     }

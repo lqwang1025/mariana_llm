@@ -62,11 +62,11 @@ void Node::forward(ExeContext& context) {
         for (auto& tensor : m_otensors) {
             if (tensor.device() == DataOn::GPU) {
                 Tensor _tensor = tensor.cpu();
-                DUMP_TENSOR_TO_BIN(_tensor, op_to_string(m_opcate)+"out");
-                DUMP_TENSOR_TO_TXT(_tensor, op_to_string(m_opcate)+"out");
+                DUMP_TENSOR_TO_BIN(_tensor, op_to_string(m_opcate));
+                DUMP_TENSOR_TO_TXT(_tensor, op_to_string(m_opcate));
             } else {
-                DUMP_TENSOR_TO_BIN(tensor, op_to_string(m_opcate)+"out");
-                DUMP_TENSOR_TO_TXT(tensor, op_to_string(m_opcate)+"out");
+                DUMP_TENSOR_TO_BIN(tensor, op_to_string(m_opcate));
+                DUMP_TENSOR_TO_TXT(tensor, op_to_string(m_opcate));
             }
         }
     }

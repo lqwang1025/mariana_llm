@@ -9,8 +9,6 @@
  * 
  */
 
-#include <core/tensor_utils.h>
-
 #include <ops/self_attention.h>
 #include <ops/backend/gpu/impl/matmul.h>
 #include <ops/backend/gpu/impl/mhs_attention.h>
@@ -102,16 +100,6 @@ bool SelfAttentionFunc::_forward_gpu(const tensor_list& inputs, tensor_list& out
     } else {
         _parallel_sync(m_tp, m_q_o.dim_at(0)*m_q_o.dim_at(1), mhs_swin_mask_attention, std::ref(m_q_o), std::ref(m_k_o), std::ref(m_v_o), std::ref(attn_mask), std::ref(pos_mask), std::ref(outputs[0]), m_n_head, m_attention_head_size, cuda_ctx);
     }
-    //cuda_ctx->stream_sync(cuda_ctx->stream(0));
-    // Tensor q = m_q_o.cpu();
-    // DUMP_TENSOR_TO_TXT(q, "q_o");
-    // Tensor k = m_k_o.cpu();
-    // DUMP_TENSOR_TO_TXT(k, "k_o");
-    // Tensor v = m_v_o.cpu();
-    // DUMP_TENSOR_TO_TXT(v, "v_o");
-    // Tensor out = outputs[0].cpu();
-    // DUMP_TENSOR_TO_TXT(out, "out");
-    // exit(0);
     return true;
 }
     

@@ -92,7 +92,7 @@ void SwinLayerFunc::_create_attn_mask(const tensor_list& inputs, ExeContext& con
     uint32_t paded_w    = m_owner->info_shared_nodes()[0]->runtime_info().feature_width+m_pad_right;
     uint32_t nh_w       = paded_h/window_size;
     uint32_t nw_w       = paded_w/window_size;
-    Tensor attn_mask(inputs[0].device());
+    Tensor attn_mask(DataOn::CPU);
     m_attn_mask = attn_mask;
     if (m_attn_mask.total_size() != 0 && (uint32_t)m_attn_mask.dim_at(0) == nh_w*nw_w &&
         (uint32_t)m_attn_mask.dim_at(2) == window_size*window_size) {

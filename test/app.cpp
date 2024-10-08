@@ -71,7 +71,6 @@ static void generate(mariana::GptModel* gpt_model, const std::string& img_path, 
 }
 
 int main(int argc, char** argv) {
-    std::cout<<"DD:";
     if (argc != 2) {
         std::cout<<"Usage : ./app 1\n";
         return 0;

@@ -37,6 +37,12 @@ protected:
     bool _forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
     bool _maybe_pad(uint32_t& pad_right, uint32_t& pad_bottom, uint32_t height, uint32_t width);
     void _create_attn_mask(const tensor_list& inputs, ExeContext& context);
+#if defined(MLM_USE_CUDA)
+public:
+    bool plan_forward_gpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+protected:
+    bool _forward_gpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+#endif
 private:
     SwinParam m_param;
     LayerNormFunc*     m_layer_norm_before = nullptr;

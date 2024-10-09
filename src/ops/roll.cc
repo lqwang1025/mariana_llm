@@ -17,7 +17,7 @@
 namespace mariana {
 
 bool RollFunc::init(const ModelParam& param, const std::string& node_name) {
-    MLOG(FATAL)<<"TODO: RollFunc is internal operator!!!";
+    MLOG(FATAL)<<"TODO: RollFunc is an internal operator!!!";
     return true;
 }
 

@@ -12,8 +12,10 @@
 #ifndef __OPS_BACKEND_GPU_IMPL_ROLL_H__
 #define __OPS_BACKEND_GPU_IMPL_ROLL_H__
 
-#include <core/tensor.h>
+#include <ops/roll.h>
 #include <ops/sched_param.h>
+
+#include <core/tensor.h>
 #include <core/backend/gpu/cuda_common.h>
 
 namespace mariana {

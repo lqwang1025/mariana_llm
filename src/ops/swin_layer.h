@@ -42,6 +42,7 @@ public:
     bool plan_forward_gpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 protected:
     bool _forward_gpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+    void _create_attn_mask_gpu(const tensor_list& inputs, ExeContext& context);
 #endif
 private:
     SwinParam m_param;

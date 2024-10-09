@@ -17,7 +17,7 @@
 namespace mariana {
 
 bool SliceFunc::init(const ModelParam& param, const std::string& node_name) {
-    MLOG(FATAL)<<"TODO";
+    MLOG(FATAL)<<"TODO: SliceFunc is an internal operator!!!";
     return true;
 }
 

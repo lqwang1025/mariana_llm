@@ -57,6 +57,13 @@ bool SwinLayerFunc::init(const ModelParam& param, const std::string& node_name) 
     m_slice_func        = new SliceFunc{};
     m_add_func          = new AddFunc{};
     m_roll_func         = new RollFunc{};
+
+    m_layer_norm_before->set_node(m_owner);
+    m_self_att->set_node(m_owner);
+    m_self_att_omm->set_node(m_owner); 
+    m_slice_func->set_node(m_owner);
+    m_add_func->set_node(m_owner);
+    m_roll_func->set_node(m_owner);
     
     m_layer_norm_before->init(param, node_name+".layernorm_before");
     m_self_att->init(param, node_name+".attention.self");

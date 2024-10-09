@@ -16,6 +16,7 @@
 #include <ops/math.h>
 #include <ops/roll.h>
 #include <ops/self_attention.h>
+#include <ops/backend/gpu/impl/pad.h>
 
 #include <core/node.h>
 #include <core/backend/gpu/cuda_common.h>
@@ -63,6 +64,36 @@ bool SwinLayerFunc::plan_forward_gpu(const tensor_list& inputs, tensor_list& out
 }
 
 bool SwinLayerFunc::_forward_gpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
+    // 1. laynorm before
+    tensor_list __outputs = {m_lnb_out};
+    
+    m_layer_norm_before->_forward_gpu(inputs, __outputs, context);
+    m_lnb_out.reshape({inputs[0].dim_at(0),
+            static_cast<int32_t>(m_owner->info_shared_nodes()[0]->runtime_info().feature_height),
+            static_cast<int32_t>(m_owner->info_shared_nodes()[0]->runtime_info().feature_width),
+            inputs[0].dim_at(2)});
+    // 1.1 pad maybe
+    Tensor __route;
+    CUDAContext* cuda_ctx = static_cast<CUDAContext*>(m_owner->backend_ctx()->context);
+    if (m_pad_bottom != 0 || m_pad_right != 0) {
+        uint32_t padding[6] = {0, 0, 0, m_pad_right, 0, m_pad_bottom};
+        _parallel_sync(m_tp, m_pad_out.dim_at(0), nchw_pad, std::ref(m_lnb_out), std::ref(m_pad_out), padding, 0.f, cuda_ctx);
+        __route = m_pad_out;
+    } else {
+        __route = m_lnb_out;
+    }
+    
+    tensor_list __inputs;
+    // 1.2 roll maybe
+    if (m_param.shift_size > 0) {
+        __inputs = {__route};
+        __outputs = {m_roll_out};
+        m_roll_func->param.dims   = {1, 2};
+        m_roll_func->param.shifts = {-m_param.shift_size, -m_param.shift_size};
+        m_roll_func->plan_forward_gpu(__inputs, __outputs, context);
+        m_roll_func->_forward_gpu(__inputs, __outputs, context);
+        __route = m_roll_out;
+    }
     return true;
 }
 

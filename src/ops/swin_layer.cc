@@ -245,8 +245,7 @@ bool SwinLayerFunc::_forward(const tensor_list& inputs, tensor_list& outputs, Ex
     tensor_list __outputs = {m_lnb_out};
     
     m_layer_norm_before->_forward(inputs, __outputs, context);
-    DUMP_TENSOR_TO_TXT(m_lnb_out, "m_lnb_out");
-    DUMP_TENSOR_TO_BIN(m_lnb_out, "m_lnb_out");
+
     m_lnb_out.reshape({inputs[0].dim_at(0),
             static_cast<int32_t>(m_owner->info_shared_nodes()[0]->runtime_info().feature_height),
             static_cast<int32_t>(m_owner->info_shared_nodes()[0]->runtime_info().feature_width),
@@ -257,8 +256,6 @@ bool SwinLayerFunc::_forward(const tensor_list& inputs, tensor_list& outputs, Ex
         uint32_t padding[6] = {0, 0, 0, m_pad_right, 0, m_pad_bottom};
         _parallel_sync(m_tp, m_pad_out.total_size(), nchw_pad, std::ref(m_lnb_out), std::ref(m_pad_out), padding, 0.f);
         __route = m_pad_out;
-        DUMP_TENSOR_TO_TXT(m_pad_out, "m_pad_out");
-        DUMP_TENSOR_TO_BIN(m_pad_out, "m_pad_out");
     } else {
         __route = m_lnb_out;
     }
@@ -273,16 +270,13 @@ bool SwinLayerFunc::_forward(const tensor_list& inputs, tensor_list& outputs, Ex
         m_roll_func->plan_forward_cpu(__inputs, __outputs, context);
         m_roll_func->_forward(__inputs, __outputs, context);
         __route = m_roll_out;
-        DUMP_TENSOR_TO_TXT(m_roll_out, "m_roll_out");
-        DUMP_TENSOR_TO_BIN(m_roll_out, "m_roll_out");
     }
     // 2. partition windows
     __route.reshape({__route.dim_at(0), __route.dim_at(1)/m_param.window_size, m_param.window_size,
             __route.dim_at(2)/m_param.window_size, m_param.window_size, __route.dim_at(3)});
     uint8_t perms[6] = {0, 1, 3, 2, 4, 5};
     _parallel_sync(m_tp, __route.total_size(), permute6, std::ref(__route), std::ref(m_permute_out), perms);
-    DUMP_TENSOR_TO_TXT(m_permute_out, "m_permute_out");
-    DUMP_TENSOR_TO_BIN(m_permute_out, "m_permute_out");
+
     // 3. attention
     m_permute_out.reshape({m_permute_out.dim_at(1)*m_permute_out.dim_at(2), m_permute_out.dim_at(3)*m_permute_out.dim_at(4), m_permute_out.dim_at(5)});
     __inputs = {m_permute_out, m_mask};
@@ -291,14 +285,12 @@ bool SwinLayerFunc::_forward(const tensor_list& inputs, tensor_list& outputs, Ex
     }
     __outputs = {m_self_att_out};
     m_self_att->_forward(__inputs, __outputs, context);
-    DUMP_TENSOR_TO_TXT(m_self_att_out, "m_self_att_out");
-    DUMP_TENSOR_TO_BIN(m_self_att_out, "m_self_att_out");
+
     // 3.1 attention projection
     __inputs = {m_self_att_out};
     __outputs = {m_self_att_omm_out};
     m_self_att_omm->_forward(__inputs, __outputs, context);
-    DUMP_TENSOR_TO_TXT(m_self_att_omm_out, "m_self_att_omm_out");
-    DUMP_TENSOR_TO_BIN(m_self_att_omm_out, "m_self_att_omm_out");
+
     // 4. windows split
     int32_t padh = m_pad_bottom+m_owner->info_shared_nodes()[0]->runtime_info().feature_height;
     int32_t padw = m_pad_right+m_owner->info_shared_nodes()[0]->runtime_info().feature_width;
@@ -307,8 +299,6 @@ bool SwinLayerFunc::_forward(const tensor_list& inputs, tensor_list& outputs, Ex
     m_permute_out.reshape({m_self_att_omm_out.dim_at(0), m_self_att_omm_out.dim_at(1),
             m_self_att_omm_out.dim_at(3), m_self_att_omm_out.dim_at(2), m_self_att_omm_out.dim_at(4), m_self_att_omm_out.dim_at(5)});
     _parallel_sync(m_tp, m_self_att_omm_out.total_size(), permute6, std::ref(m_self_att_omm_out), std::ref(m_permute_out), perms);
-    DUMP_TENSOR_TO_TXT(m_permute_out, "m_permute_out_split");
-    DUMP_TENSOR_TO_BIN(m_permute_out, "m_permute_out_split");
     m_permute_out.reshape({m_permute_out.dim_at(0),
             m_permute_out.dim_at(1)*m_permute_out.dim_at(2),
             m_permute_out.dim_at(3)*m_permute_out.dim_at(4),
@@ -338,9 +328,7 @@ bool SwinLayerFunc::_forward(const tensor_list& inputs, tensor_list& outputs, Ex
         m_slice_func->plan_forward_cpu(__inputs, __outputs, context);
         m_slice_func->_forward(__inputs, __outputs, context);
         m_lnb_out.reshape({m_lnb_out.dim_at(0), m_lnb_out.dim_at(1)*m_lnb_out.dim_at(2), m_lnb_out.dim_at(3)});
-        DUMP_TENSOR_TO_TXT(m_lnb_out, "m_lnb_out_slice");
-        DUMP_TENSOR_TO_BIN(m_lnb_out, "m_lnb_out_slice");
-        exit(0);
+
         // 4.2 shortcut
         __inputs = {m_lnb_out, inputs[0]};
         m_add_func->plan_forward_cpu(__inputs, outputs, context);

@@ -18,9 +18,9 @@ __device__ inline bool cuda_is_a_ge_zero_and_a_lt_b(int a, int b) {
 }
 
 template<typename T>
-__global__ void __im2col_kernel(const T* input, T* out, uint32_t IW, uint32_t IH, uint32_t KW, uint32_t KH, uint32_t IC, uint32_t OW, uint32_t OH, uint32_t dilation_h, uint32_t dilation_w, uint32_t pad_t, uint32_t pad_l, uint32_t stride_h, uint32_t stride_w, uint32_t input_stride_1) {
+__global__ void __im2col_kernel(const T* input, T* out, uint32_t distance, uint32_t IW, uint32_t IH, uint32_t KW, uint32_t KH, uint32_t IC, uint32_t OW, uint32_t OH, uint32_t dilation_h, uint32_t dilation_w, uint32_t pad_t, uint32_t pad_l, uint32_t stride_h, uint32_t stride_w, uint32_t input_stride_0, uint32_t input_stride_1) {
     int32_t index = (blockIdx.x + blockIdx.y * gridDim.x) * blockDim.x + threadIdx.x;
-    if (index >= OH*OW*IC*KW*KH) return;
+    if (index >= OH*OW*IC*KW*KH*distance) return;
     int32_t _idx = index;
     const int32_t kw = _idx % KW;
     _idx /= KW;
@@ -30,14 +30,16 @@ __global__ void __im2col_kernel(const T* input, T* out, uint32_t IW, uint32_t IH
     _idx /= IC;
     const int32_t ow = _idx % OW;
     _idx /= OW;
-    const int32_t oh = _idx;
+    const int32_t oh = _idx % OH;
+    _idx /= OH;
+    const int32_t n = _idx;
     const int32_t ih = (kh*dilation_h) - pad_t + stride_h*oh;
     const int32_t iw = (kw*dilation_w) - pad_l + stride_w*ow;
     if (!cuda_is_a_ge_zero_and_a_lt_b(ih, IH) ||
         !cuda_is_a_ge_zero_and_a_lt_b(iw, IW) ) { // in padding zone
         out[index] = 0;
     } else {
-        const uint32_t iidx = ic*input_stride_1+ih*IW+iw;
+        const uint32_t iidx = n*input_stride_0+ic*input_stride_1+ih*IW+iw;
         out[index] = input[iidx];
     }
 }
@@ -50,10 +52,11 @@ void im2col(SchedParam sched_param, const Tensor& input, Tensor& out, int32_t ke
         const uint32_t IC      = input.dim_at(1);
         const int32_t  OH      = out.dim_at(1);
         const int32_t  OW      = out.dim_at(2);
+        uint32_t distance = sched_param.this_thread_end_index() - sched_param.this_thread_begin_index();
         float* input_ptr = input.unsafe_ptr<float>(sched_param.this_thread_begin_index()*ioffset);
         float* out_ptr   = out.unsafe_ptr<float>(sched_param.this_thread_begin_index()*ooffset);
         __im2col_kernel<float><<<get_cuda_gridsize(ooffset, CUDA_IMG2COL_BLOCK_SIZE),
-            CUDA_IMG2COL_BLOCK_SIZE, 0, cuda_ctx->stream(sched_param.id_thread)>>>(input_ptr, out_ptr, input.dim_at(3), input.dim_at(2), kernel_w, kernel_h, IC, OW, OH, dilation_h, dilation_w, pad_t, pad_l, stride_h, stride_w, input.stride_at(1));
+            CUDA_IMG2COL_BLOCK_SIZE, 0, cuda_ctx->stream(sched_param.id_thread)>>>(input_ptr, out_ptr, distance, input.dim_at(3), input.dim_at(2), kernel_w, kernel_h, IC, OW, OH, dilation_h, dilation_w, pad_t, pad_l, stride_h, stride_w, input.stride_at(0), input.stride_at(1));
         cuda_ctx->stream_sync(cuda_ctx->stream(sched_param.id_thread));
     } else {
         MLOG(FATAL)<<"IM2COL unsupport datatype:"<<input.dtype().name();

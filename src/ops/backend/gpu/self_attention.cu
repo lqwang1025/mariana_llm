@@ -15,6 +15,7 @@
 
 #include <core/node.h>
 #include <core/backend/gpu/cuda_common.h>
+#include <core/tensor_utils.h>
 
 namespace mariana {
 
@@ -98,7 +99,7 @@ bool SelfAttentionFunc::_forward_gpu(const tensor_list& inputs, tensor_list& out
             _parallel_sync(m_tp, m_q_o.dim_at(0), mhs_mask_attention, std::ref(m_q_o), std::ref(m_k_o), std::ref(m_v_o), std::ref(attn_mask), std::ref(outputs[0]), m_n_head, m_attention_head_size, cuda_ctx);
         }
     } else {
-        _parallel_sync(m_tp, m_q_o.dim_at(0)*m_q_o.dim_at(1), mhs_swin_mask_attention, std::ref(m_q_o), std::ref(m_k_o), std::ref(m_v_o), std::ref(attn_mask), std::ref(pos_mask), std::ref(outputs[0]), m_n_head, m_attention_head_size, cuda_ctx);
+        _parallel_sync(m_tp, m_q_o.dim_at(0), mhs_swin_mask_attention, std::ref(m_q_o), std::ref(m_k_o), std::ref(m_v_o), std::ref(attn_mask), std::ref(pos_mask), std::ref(outputs[0]), m_n_head, m_attention_head_size, cuda_ctx);
     }
     return true;
 }

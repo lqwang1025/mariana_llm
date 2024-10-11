@@ -195,8 +195,7 @@ bool SwinLayerFunc::_forward_gpu(const tensor_list& inputs, tensor_list& outputs
     // 1. laynorm before
     tensor_list __outputs = {m_lnb_out};
     m_layer_norm_before->_forward_gpu(inputs, __outputs, context);
-    DUMP_TENSOR_TO_TXT(m_lnb_out.cpu(), "m_lnb_out");
-    DUMP_TENSOR_TO_BIN(m_lnb_out.cpu(), "m_lnb_out");
+
     m_lnb_out.reshape({inputs[0].dim_at(0),
             static_cast<int32_t>(m_owner->info_shared_nodes()[0]->runtime_info().feature_height),
             static_cast<int32_t>(m_owner->info_shared_nodes()[0]->runtime_info().feature_width),
@@ -225,8 +224,6 @@ bool SwinLayerFunc::_forward_gpu(const tensor_list& inputs, tensor_list& outputs
         m_roll_func->plan_forward_gpu(__inputs, __outputs, context);
         m_roll_func->_forward_gpu(__inputs, __outputs, context);
         __route = m_roll_out;
-        DUMP_TENSOR_TO_TXT(m_roll_out.cpu(), "m_roll_out");
-        DUMP_TENSOR_TO_BIN(m_roll_out.cpu(), "m_roll_out");
     }
 
     // 2. partition windows
@@ -234,8 +231,7 @@ bool SwinLayerFunc::_forward_gpu(const tensor_list& inputs, tensor_list& outputs
             __route.dim_at(2)/m_param.window_size, m_param.window_size, __route.dim_at(3)});
     uint8_t perms[6] = {0, 1, 3, 2, 4, 5};
     _parallel_sync(m_tp, 1, permute6, std::ref(__route), std::ref(m_permute_out), perms, cuda_ctx);
-    DUMP_TENSOR_TO_TXT(m_permute_out.cpu(), "m_permute_out");
-    DUMP_TENSOR_TO_BIN(m_permute_out.cpu(), "m_permute_out");
+
     
     // 3. attention
     m_permute_out.reshape({m_permute_out.dim_at(1)*m_permute_out.dim_at(2), m_permute_out.dim_at(3)*m_permute_out.dim_at(4), m_permute_out.dim_at(5)});
@@ -245,15 +241,13 @@ bool SwinLayerFunc::_forward_gpu(const tensor_list& inputs, tensor_list& outputs
     }
     __outputs = {m_self_att_out};
     m_self_att->_forward_gpu(__inputs, __outputs, context);
-    DUMP_TENSOR_TO_TXT(m_self_att_out.cpu(), "m_self_att_out");
-    DUMP_TENSOR_TO_BIN(m_self_att_out.cpu(), "m_self_att_out");
+
     
     // 3.1 attention projection
     __inputs = {m_self_att_out};
     __outputs = {m_self_att_omm_out};
     m_self_att_omm->_forward_gpu(__inputs, __outputs, context);
-    DUMP_TENSOR_TO_TXT(m_self_att_omm_out.cpu(), "m_self_att_omm_out");
-    DUMP_TENSOR_TO_BIN(m_self_att_omm_out.cpu(), "m_self_att_omm_out");
+
     
     // 4. windows split
     int32_t padh = m_pad_bottom+m_owner->info_shared_nodes()[0]->runtime_info().feature_height;
@@ -263,8 +257,7 @@ bool SwinLayerFunc::_forward_gpu(const tensor_list& inputs, tensor_list& outputs
     m_permute_out.reshape({m_self_att_omm_out.dim_at(0), m_self_att_omm_out.dim_at(1),
             m_self_att_omm_out.dim_at(3), m_self_att_omm_out.dim_at(2), m_self_att_omm_out.dim_at(4), m_self_att_omm_out.dim_at(5)});
     _parallel_sync(m_tp, m_self_att_omm_out.total_size(), permute6, std::ref(m_self_att_omm_out), std::ref(m_permute_out), perms, cuda_ctx);
-    DUMP_TENSOR_TO_TXT(m_permute_out.cpu(), "m_permute_out_split");
-    DUMP_TENSOR_TO_BIN(m_permute_out.cpu(), "m_permute_out_split");
+
     m_permute_out.reshape({m_permute_out.dim_at(0), m_permute_out.dim_at(1)*m_permute_out.dim_at(2),
             m_permute_out.dim_at(3)*m_permute_out.dim_at(4), m_permute_out.dim_at(5)});
     
@@ -293,9 +286,7 @@ bool SwinLayerFunc::_forward_gpu(const tensor_list& inputs, tensor_list& outputs
         m_slice_func->plan_forward_gpu(__inputs, __outputs, context);
         m_slice_func->_forward_gpu(__inputs, __outputs, context);
         m_lnb_out.reshape({m_lnb_out.dim_at(0), m_lnb_out.dim_at(1)*m_lnb_out.dim_at(2), m_lnb_out.dim_at(3)});
-        DUMP_TENSOR_TO_TXT(m_lnb_out.cpu(), "m_lnb_out_slice");
-        DUMP_TENSOR_TO_BIN(m_lnb_out.cpu(), "m_lnb_out_slice");
-        exit(0);
+
         // 4.2 shortcut
         __inputs = {m_lnb_out, inputs[0]};
         m_add_func->plan_forward_gpu(__inputs, outputs, context);

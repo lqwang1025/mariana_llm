@@ -28,6 +28,7 @@ void SwinStageOutputFunc::set_thread_pool(ThreadPool* tp) {
 
 bool SwinStageOutputFunc::init(const ModelParam& param, const std::string& node_name) {
     m_layer_norm = new LayerNormFunc{};
+    m_layer_norm->set_node(m_owner);
     m_layer_norm->init(param, node_name);
     return true;
 }
@@ -46,7 +47,7 @@ bool SwinStageOutputFunc::plan_forward_cpu(const tensor_list& inputs, tensor_lis
 
 bool SwinStageOutputFunc::_forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     tensor_list __outputs = {m_ln_out};
-    m_layer_norm->on_forward(inputs, __outputs, context);
+    m_layer_norm->_forward(inputs, __outputs, context);
     uint8_t perms[4] = {0, 3, 1, 2};
     m_ln_out.reshape({m_ln_out.dim_at(0), (int32_t)m_owner->info_shared_nodes()[0]->runtime_info().feature_height,
             (int32_t)m_owner->info_shared_nodes()[0]->runtime_info().feature_width, m_ln_out.dim_at(2)});

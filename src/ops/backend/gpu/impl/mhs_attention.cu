@@ -176,13 +176,12 @@ void mhs_mask_attention(SchedParam sched_param, const Tensor& Q, const Tensor& K
         const uint32_t q_offset = Q.stride_at(0);
         const uint32_t k_offset = K.stride_at(0);
         const uint32_t v_offset = V.stride_at(0);
-        const uint32_t m_offset = mask.stride_at(0);
         const uint32_t o_offset = out.stride_at(0);
         uint32_t distance = sched_param.this_thread_end_index() - sched_param.this_thread_begin_index();
         float* q_ptr    = Q.unsafe_ptr<float>(sched_param.this_thread_begin_index()*q_offset);
         float* k_ptr    = K.unsafe_ptr<float>(sched_param.this_thread_begin_index()*k_offset);
         float* v_ptr    = V.unsafe_ptr<float>(sched_param.this_thread_begin_index()*v_offset);
-        float* mask_ptr = mask.unsafe_ptr<float>(sched_param.this_thread_begin_index()*m_offset);
+        float* mask_ptr = mask.unsafe_ptr<float>(0);
         float* out_ptr  = out.unsafe_ptr<float>(sched_param.this_thread_begin_index()*o_offset);
         __mhs_mask_attention_float32_kernel<<<get_cuda_gridsize(distance*QT, CUDA_ATTN_BLOCK_SIZE),
             CUDA_ATTN_BLOCK_SIZE, 0, cuda_ctx->stream(sched_param.id_thread)>>>(q_ptr, k_ptr, v_ptr, mask_ptr, distance, QT, KT, VT, n_head, head_size, Q.stride_at(0), Q.stride_at(1), K.stride_at(0), K.stride_at(1), mask.dim_at(1), mask.stride_at(1), mask.stride_at(2), V.stride_at(0), V.stride_at(1), out.stride_at(0), out.stride_at(1), out_ptr);
@@ -222,15 +221,13 @@ void mhs_swin_mask_attention(SchedParam sched_param, const Tensor& Q, const Tens
         const uint32_t q_offset  = Q.stride_at(0);
         const uint32_t k_offset  = K.stride_at(0);
         const uint32_t v_offset  = V.stride_at(0);
-        const uint32_t m_offset  = attn_mask.stride_at(0);
-        const uint32_t pm_offset = pos_mask.stride_at(0);
         const uint32_t o_offset  = out.stride_at(0);
         uint32_t distance = sched_param.this_thread_end_index() - sched_param.this_thread_begin_index();
         float* q_ptr     = Q.unsafe_ptr<float>(sched_param.this_thread_begin_index()*q_offset);
         float* k_ptr     = K.unsafe_ptr<float>(sched_param.this_thread_begin_index()*k_offset);
         float* v_ptr     = V.unsafe_ptr<float>(sched_param.this_thread_begin_index()*v_offset);
-        float* mask_ptr  = attn_mask.unsafe_ptr<float>(sched_param.this_thread_begin_index()*m_offset);
-        float* pmask_ptr = pos_mask.unsafe_ptr<float>(sched_param.this_thread_begin_index()*pm_offset);
+        float* mask_ptr  = attn_mask.unsafe_ptr<float>(0);
+        float* pmask_ptr = pos_mask.unsafe_ptr<float>(0);
         float* out_ptr   = out.unsafe_ptr<float>(sched_param.this_thread_begin_index()*o_offset);
         __mhs_swin_mask_attention_float32_kernel<<<get_cuda_gridsize(distance*QT, CUDA_ATTN_BLOCK_SIZE),
             CUDA_ATTN_BLOCK_SIZE, 0, cuda_ctx->stream(sched_param.id_thread)>>>(q_ptr, k_ptr, v_ptr, mask_ptr, pmask_ptr, distance, QT, KT, VT, n_head, head_size, Q.stride_at(0), Q.stride_at(1), K.stride_at(0), K.stride_at(1), attn_mask.stride_at(2), pos_mask.dim_at(1), pos_mask.stride_at(1), pos_mask.stride_at(2), V.stride_at(0), V.stride_at(1), out.stride_at(0), out.stride_at(1), out_ptr);

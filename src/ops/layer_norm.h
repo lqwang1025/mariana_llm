@@ -27,6 +27,7 @@ struct LayerNormFunc : public Function {
     bool plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 protected:
     friend class SwinLayerFunc;
+    friend class SwinStageOutputFunc;
     bool _forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 #if defined(MLM_USE_CUDA)
 public:

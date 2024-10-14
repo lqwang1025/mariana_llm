@@ -21,6 +21,7 @@ void swin_patch_merge(SchedParam sched_param, const Tensor& input, Tensor& out, 
     CudaIAllocator::CudaMemcoryContext cmc;
     cmc.stream = cuda_ctx->stream(sched_param.id_thread);
     cmc.kind   = cudaMemcpyHostToHost;
+    cmc.sync   = true;
     const uint32_t IC = input.dim_at(3);
     IAllocator* allocator = get_allocator(out.device());
     for (uint32_t i = sched_param.this_thread_begin_index(); i < sched_param.this_thread_end_index(); ++i) {
@@ -73,8 +74,8 @@ void swin_patch_merge(SchedParam sched_param, const Tensor& input, Tensor& out, 
             MLOG(ERROR)<<"wrong number of swin patch merge to concat:"<<idx4;
             return;
         }
-        
     }
+    //cuda_ctx->stream_sync(cuda_ctx->stream(sched_param.id_thread));
 }
 
 bool SwinPatchMergingFunc::plan_forward_gpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {

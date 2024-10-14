@@ -25,7 +25,6 @@
 #include <models/model_param.h>
 #include <core/node.h>
 #include <core/function.h>
-#include <core/tensor_utils.h>
 
 namespace mariana {
 
@@ -99,8 +98,10 @@ void SwinLayerFunc::_create_attn_mask(const tensor_list& inputs, ExeContext& con
     uint32_t paded_w    = m_owner->info_shared_nodes()[0]->runtime_info().feature_width+m_pad_right;
     uint32_t nh_w       = paded_h/window_size;
     uint32_t nw_w       = paded_w/window_size;
-    Tensor attn_mask(DataOn::CPU);
-    m_attn_mask = attn_mask;
+    if (m_attn_mask.total_size() == 0) {
+        Tensor attn_mask(DataOn::CPU);
+        m_attn_mask = attn_mask;
+    }
     if (m_attn_mask.total_size() != 0 && (uint32_t)m_attn_mask.dim_at(0) == nh_w*nw_w &&
         (uint32_t)m_attn_mask.dim_at(2) == window_size*window_size) {
         return;
@@ -285,7 +286,7 @@ bool SwinLayerFunc::_forward(const tensor_list& inputs, tensor_list& outputs, Ex
     }
     __outputs = {m_self_att_out};
     m_self_att->_forward(__inputs, __outputs, context);
-
+    
     // 3.1 attention projection
     __inputs = {m_self_att_out};
     __outputs = {m_self_att_omm_out};
@@ -327,8 +328,7 @@ bool SwinLayerFunc::_forward(const tensor_list& inputs, tensor_list& outputs, Ex
         __outputs = {m_lnb_out};
         m_slice_func->plan_forward_cpu(__inputs, __outputs, context);
         m_slice_func->_forward(__inputs, __outputs, context);
-        m_lnb_out.reshape({m_lnb_out.dim_at(0), m_lnb_out.dim_at(1)*m_lnb_out.dim_at(2), m_lnb_out.dim_at(3)});
-
+        m_lnb_out.reshape({m_lnb_out.dim_at(0), m_lnb_out.dim_at(1)*m_lnb_out.dim_at(2), m_lnb_out.dim_at(3)});     
         // 4.2 shortcut
         __inputs = {m_lnb_out, inputs[0]};
         m_add_func->plan_forward_cpu(__inputs, outputs, context);

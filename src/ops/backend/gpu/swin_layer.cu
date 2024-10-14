@@ -22,7 +22,6 @@
 #include <core/node.h>
 #include <core/impl/allocator.h>
 #include <core/backend/gpu/cuda_common.h>
-#include <core/tensor_utils.h>
 
 namespace mariana {
 
@@ -89,7 +88,6 @@ void SwinLayerFunc::_create_attn_mask_gpu(const tensor_list& inputs, ExeContext&
     m_attn_mask.try_realloc({static_cast<int32_t>(nh_w*nw_w), 1,
             static_cast<int32_t>(window_size*window_size),
             static_cast<int32_t>(window_size*window_size)}, inputs[0].dtype());
-    static int __ss = 0;
     
 #define CUDA_ATTNMASK_BLOCK_SIZE 256
     CUDAContext* cuda_ctx = static_cast<CUDAContext*>(m_owner->backend_ctx()->context);
@@ -152,8 +150,6 @@ bool SwinLayerFunc::plan_forward_gpu(const tensor_list& inputs, tensor_list& out
     m_self_att_omm->plan_forward_gpu(__inputs, __outputs, context);
     if (m_param.shift_size > 0) {
         _create_attn_mask_gpu(inputs, context);
-        DUMP_TENSOR_TO_TXT(m_attn_mask.cpu(), "m_attn_mask");
-        DUMP_TENSOR_TO_BIN(m_attn_mask.cpu(), "m_attn_mask");
     }
     return true;
 }
@@ -174,8 +170,6 @@ bool SwinLayerFunc::_forward_gpu(const tensor_list& inputs, tensor_list& outputs
         uint32_t padding[6] = {0, 0, 0, m_pad_right, 0, m_pad_bottom};
         _parallel_sync(m_tp, m_pad_out.dim_at(0), nchw_pad, std::ref(m_lnb_out), std::ref(m_pad_out), padding, 0.f, cuda_ctx);
         __route = m_pad_out;
-        DUMP_TENSOR_TO_TXT(m_pad_out.cpu(), "m_pad_out");
-        DUMP_TENSOR_TO_BIN(m_pad_out.cpu(), "m_pad_out");
     } else {
         __route = m_lnb_out;
     }
@@ -193,8 +187,6 @@ bool SwinLayerFunc::_forward_gpu(const tensor_list& inputs, tensor_list& outputs
         m_roll_func->plan_forward_gpu(__inputs, __outputs, context);
         m_roll_func->_forward_gpu(__inputs, __outputs, context);
         __route = m_roll_out;
-        DUMP_TENSOR_TO_TXT(m_roll_out.cpu(), "m_roll_out");
-        DUMP_TENSOR_TO_BIN(m_roll_out.cpu(), "m_roll_out");
     }
 
     // 2. partition windows
@@ -210,13 +202,8 @@ bool SwinLayerFunc::_forward_gpu(const tensor_list& inputs, tensor_list& outputs
     if (m_param.shift_size > 0) {
         __inputs.push_back(m_attn_mask);
     }
-    DUMP_TENSOR_TO_TXT(m_permute_out.cpu(), "m_permute_out");
-    DUMP_TENSOR_TO_BIN(m_permute_out.cpu(), "m_permute_out");
     __outputs = {m_self_att_out};
     m_self_att->_forward_gpu(__inputs, __outputs, context);
-    
-    DUMP_TENSOR_TO_TXT(m_self_att_out.cpu(), "m_self_att_out");
-    DUMP_TENSOR_TO_BIN(m_self_att_out.cpu(), "m_self_att_out");
     
     // 3.1 attention projection
     __inputs = {m_self_att_out};
@@ -245,8 +232,6 @@ bool SwinLayerFunc::_forward_gpu(const tensor_list& inputs, tensor_list& outputs
         m_roll_func->plan_forward_gpu(__inputs, __outputs, context);
         m_roll_func->_forward_gpu(__inputs, __outputs, context);
         __route = m_roll_out;
-        DUMP_TENSOR_TO_TXT(m_roll_out.cpu(), "m_roll_out1");
-        DUMP_TENSOR_TO_BIN(m_roll_out.cpu(), "m_roll_out1");
     } else {
         __route = m_permute_out;
     }
@@ -263,8 +248,6 @@ bool SwinLayerFunc::_forward_gpu(const tensor_list& inputs, tensor_list& outputs
         m_slice_func->plan_forward_gpu(__inputs, __outputs, context);
         m_slice_func->_forward_gpu(__inputs, __outputs, context);
         m_lnb_out.reshape({m_lnb_out.dim_at(0), m_lnb_out.dim_at(1)*m_lnb_out.dim_at(2), m_lnb_out.dim_at(3)});
-        DUMP_TENSOR_TO_TXT(m_lnb_out.cpu(), "m_slice");
-        DUMP_TENSOR_TO_BIN(m_lnb_out.cpu(), "m_slice");
 
         // 4.2 shortcut
         __inputs = {m_lnb_out, inputs[0]};

@@ -115,7 +115,7 @@ __global__ void __mhs_attention_float32_kernel(const float* q_ptr, const float* 
     } // n_head
 }
 
-__global__ void __mhs_swin_mask_attention_float32_kernel(const float* q_ptr, const float* k_ptr, const float* v_ptr, const float* mask_ptr, const float* pos_mask_ptr, uint32_t distance, uint32_t QT, uint32_t KT, uint32_t VT, uint32_t n_head, uint32_t head_size, uint32_t q_stride_0, uint32_t q_stride_1, uint32_t k_stride_0, uint32_t k_stride_1, uint32_t mask_stride_2, uint32_t pmask_dim_1, uint32_t pmask_stride_1, uint32_t pmask_stride_2, uint32_t v_stride_0, uint32_t v_stride_1, uint32_t out_stride_0, uint32_t out_stride_1, float* out_ptr) {
+__global__ void __mhs_swin_mask_attention_float32_kernel(const float* q_ptr, const float* k_ptr, const float* v_ptr, const float* mask_ptr, const float* pos_mask_ptr, uint32_t distance, uint32_t QT, uint32_t KT, uint32_t VT, uint32_t n_head, uint32_t head_size, uint32_t q_stride_0, uint32_t q_stride_1, uint32_t k_stride_0, uint32_t k_stride_1, uint32_t mask_stride_0, uint32_t mask_stride_2, uint32_t pmask_dim_1, uint32_t pmask_stride_1, uint32_t pmask_stride_2, uint32_t v_stride_0, uint32_t v_stride_1, uint32_t out_stride_0, uint32_t out_stride_1, float* out_ptr) {
     int32_t index = (blockIdx.x + blockIdx.y * gridDim.x) * blockDim.x + threadIdx.x;
     if (index >= QT*distance) return;
     int32_t t = index % QT;
@@ -136,13 +136,13 @@ __global__ void __mhs_swin_mask_attention_float32_kernel(const float* q_ptr, con
             if (pmask_dim_1 == n_head) {
                 mask_id += h*pmask_stride_1;
             }
-            uint32_t att_mask_id = t*mask_stride_2+t2;
+            uint32_t att_mask_id = n*mask_stride_0+t*mask_stride_2+t2;
             _qk_dot[t2] = val*scale+pos_mask_ptr[mask_id]+mask_ptr[att_mask_id];
             if (_qk_dot[t2] > maxval) {
                 maxval = _qk_dot[t2];
             }
         }
-            
+        
         //2. softmax
         float expsum = 0.f;
         for (uint32_t t2 = 0; t2 < KT; ++t2) { // 52
@@ -222,15 +222,16 @@ void mhs_swin_mask_attention(SchedParam sched_param, const Tensor& Q, const Tens
         const uint32_t k_offset  = K.stride_at(0);
         const uint32_t v_offset  = V.stride_at(0);
         const uint32_t o_offset  = out.stride_at(0);
+        const uint32_t am_offset = attn_mask.stride_at(0);
         uint32_t distance = sched_param.this_thread_end_index() - sched_param.this_thread_begin_index();
         float* q_ptr     = Q.unsafe_ptr<float>(sched_param.this_thread_begin_index()*q_offset);
         float* k_ptr     = K.unsafe_ptr<float>(sched_param.this_thread_begin_index()*k_offset);
         float* v_ptr     = V.unsafe_ptr<float>(sched_param.this_thread_begin_index()*v_offset);
-        float* mask_ptr  = attn_mask.unsafe_ptr<float>(0);
+        float* mask_ptr  = attn_mask.unsafe_ptr<float>(sched_param.this_thread_begin_index()*am_offset);
         float* pmask_ptr = pos_mask.unsafe_ptr<float>(0);
         float* out_ptr   = out.unsafe_ptr<float>(sched_param.this_thread_begin_index()*o_offset);
         __mhs_swin_mask_attention_float32_kernel<<<get_cuda_gridsize(distance*QT, CUDA_ATTN_BLOCK_SIZE),
-            CUDA_ATTN_BLOCK_SIZE, 0, cuda_ctx->stream(sched_param.id_thread)>>>(q_ptr, k_ptr, v_ptr, mask_ptr, pmask_ptr, distance, QT, KT, VT, n_head, head_size, Q.stride_at(0), Q.stride_at(1), K.stride_at(0), K.stride_at(1), attn_mask.stride_at(2), pos_mask.dim_at(1), pos_mask.stride_at(1), pos_mask.stride_at(2), V.stride_at(0), V.stride_at(1), out.stride_at(0), out.stride_at(1), out_ptr);
+            CUDA_ATTN_BLOCK_SIZE, 0, cuda_ctx->stream(sched_param.id_thread)>>>(q_ptr, k_ptr, v_ptr, mask_ptr, pmask_ptr, distance, QT, KT, VT, n_head, head_size, Q.stride_at(0), Q.stride_at(1), K.stride_at(0), K.stride_at(1), attn_mask.stride_at(0), attn_mask.stride_at(2), pos_mask.dim_at(1), pos_mask.stride_at(1), pos_mask.stride_at(2), V.stride_at(0), V.stride_at(1), out.stride_at(0), out.stride_at(1), out_ptr);
         cuda_ctx->stream_sync(cuda_ctx->stream(sched_param.id_thread));
     } else {
         MLOG(FATAL)<<"MHS SWIN attention unsupport datatype:"<<out.dtype().name();

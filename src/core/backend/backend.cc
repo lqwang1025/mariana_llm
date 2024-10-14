@@ -18,12 +18,14 @@
 namespace mariana {
 
 BackendContext::~BackendContext() {
+#if defined(MLM_USE_CUDA)
     if (DataOn::GPU == device) {
         if (context != nullptr) {
             CUDAContext* cuda_context = static_cast<CUDAContext*>(context);
             delete cuda_context;
         }
     }
+#endif
 }
     
 } // namespace mariana

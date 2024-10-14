@@ -22,6 +22,12 @@ struct SwinPatchMergingFunc : public Function {
     int32_t step = 1;
 protected:
     bool _forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+#if defined(MLM_USE_CUDA)
+public:
+    bool plan_forward_gpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+protected:
+    bool _forward_gpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+#endif
 };
 
 } // namespace mariana

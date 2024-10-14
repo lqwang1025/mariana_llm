@@ -27,9 +27,9 @@
 namespace mariana {
 
 template<typename T>
-__global__ void __roolh_kernel(T* data, T value, int32_t window_size, int32_t shift_size) {
+__global__ void __rool_kernel(T* data, T value, int32_t nh_w, int32_t nw_w, int32_t data_stride_1, int32_t window_size, int32_t shift_size) {
     int32_t index = (blockIdx.x + blockIdx.y * gridDim.x) * blockDim.x + threadIdx.x;
-    if (index >= window_size*window_size*window_size*window_size) return;
+    if (index >= nh_w*nw_w*window_size*window_size*window_size*window_size) return;
     int32_t idx = index;
     int32_t w2 = idx % window_size;
     idx /= window_size;
@@ -37,61 +37,37 @@ __global__ void __roolh_kernel(T* data, T value, int32_t window_size, int32_t sh
     idx /= window_size;
     int32_t h2 = idx % window_size;
     idx /= window_size;
-    int32_t h1 = idx;
-    size_t h_offset = h1*window_size+h2;
-    h_offset = h_offset*window_size*window_size;
-    if ((h2 < window_size-shift_size && w2 > shift_size) ||
-        (h2 > shift_size && w2 < window_size-shift_size)) {
-        data[h_offset+w1*window_size+w2] = value;
-    }
-}
-
-template<typename T>
-__global__ void __roolw_kernel(T* data, T value, int32_t window_size, int32_t shift_size) {
-    int32_t index = (blockIdx.x + blockIdx.y * gridDim.x) * blockDim.x + threadIdx.x;
-    if (index >= window_size*window_size*window_size*window_size) return;
-    int32_t idx = index;
-    int32_t w2 = idx % window_size;
+    int32_t h1 = idx % window_size;
     idx /= window_size;
-    int32_t w1 = idx % window_size;
-    idx /= window_size;
-    int32_t h2 = idx % window_size;
-    idx /= window_size;
-    int32_t h1 = idx;
-    size_t h_offset = h1*window_size+h2;
-    h_offset = h_offset*window_size*window_size;
-    if ( (h1*window_size+h2 < (window_size-shift_size)*window_size &&
-          w1*window_size+w2 > (window_size-shift_size)*window_size-1) ||
-         (h1*window_size+h2 > (window_size-shift_size)*window_size-1 &&
-          w1*window_size+w2 < (window_size-shift_size)*window_size) ) {
-        data[h_offset+w1*window_size+w2] = value;
-    }
-}
-
-template<typename T>
-__global__ void __roolhw_kernel(T* data, T value, int32_t window_size, int32_t shift_size) {
-    int32_t index = (blockIdx.x + blockIdx.y * gridDim.x) * blockDim.x + threadIdx.x;
-    if (index >= window_size*window_size*window_size*window_size) return;
-    int32_t idx = index;
-    int32_t w2 = idx % window_size;
-    idx /= window_size;
-    int32_t w1 = idx % window_size;
-    idx /= window_size;
-    int32_t h2 = idx % window_size;
-    idx /= window_size;
-    int32_t h1 = idx;
-    size_t h_offset = h1*window_size+h2;
-    h_offset = h_offset*window_size*window_size;
-    if ( (h1*window_size+h2 < (window_size-shift_size)*window_size &&
-          w1*window_size+w2 < (window_size-shift_size)*window_size) ||
-         (h1*window_size+h2 > (window_size-shift_size)*window_size-1 &&
-          w1*window_size+w2 > (window_size-shift_size)*window_size-1) ) {
+    int32_t iw_w = idx % nw_w;
+    idx /= nw_w;
+    int32_t ih_w = idx;
+    if ((iw_w == (nw_w-1)) && (ih_w < (nh_w-1))) {
         if ((h2 < window_size-shift_size && w2 > shift_size) ||
             (h2 > shift_size && w2 < window_size-shift_size)) {
-            data[h_offset+w1*window_size+w2] = value;
+            data[index] = value;
+        }
+    } else if ((ih_w == (nh_w-1)) && (iw_w < (nw_w-1))) {
+        if ( (h1*window_size+h2 < (window_size-shift_size)*window_size &&
+              w1*window_size+w2 > (window_size-shift_size)*window_size-1) ||
+             (h1*window_size+h2 > (window_size-shift_size)*window_size-1 &&
+              w1*window_size+w2 < (window_size-shift_size)*window_size) ) {
+            data[index] = value;
+        }
+    } else if ((iw_w == (nw_w-1)) && (ih_w == (nh_w-1))) {
+        if ( (h1*window_size+h2 < (window_size-shift_size)*window_size &&
+              w1*window_size+w2 < (window_size-shift_size)*window_size) ||
+             (h1*window_size+h2 > (window_size-shift_size)*window_size-1 &&
+              w1*window_size+w2 > (window_size-shift_size)*window_size-1) ) {
+            if ((h2 < window_size-shift_size && w2 > shift_size) ||
+                (h2 > shift_size && w2 < window_size-shift_size)) {
+                data[index] = value;
+            }
+        } else {
+            data[index] = value;
         }
     } else {
-        data[h_offset+w1*window_size+w2] = value;
+        data[index] = 0;
     }
 }
 
@@ -102,8 +78,10 @@ void SwinLayerFunc::_create_attn_mask_gpu(const tensor_list& inputs, ExeContext&
     uint32_t paded_w    = m_owner->info_shared_nodes()[0]->runtime_info().feature_width+m_pad_right;
     uint32_t nh_w       = paded_h/window_size;
     uint32_t nw_w       = paded_w/window_size;
-    Tensor attn_mask(DataOn::GPU);
-    m_attn_mask = attn_mask;
+    if (m_attn_mask.total_size() == 0) {
+        Tensor attn_mask(DataOn::GPU);
+        m_attn_mask = attn_mask;
+    }
     if (m_attn_mask.total_size() != 0 && (uint32_t)m_attn_mask.dim_at(0) == nh_w*nw_w &&
         (uint32_t)m_attn_mask.dim_at(2) == window_size*window_size) {
         return;
@@ -111,27 +89,14 @@ void SwinLayerFunc::_create_attn_mask_gpu(const tensor_list& inputs, ExeContext&
     m_attn_mask.try_realloc({static_cast<int32_t>(nh_w*nw_w), 1,
             static_cast<int32_t>(window_size*window_size),
             static_cast<int32_t>(window_size*window_size)}, inputs[0].dtype());
-    IAllocator* allocator = get_allocator(m_attn_mask.device());
-    allocator->memset(m_attn_mask.unsafe_ptr<float>(0), 0, m_attn_mask.total_size()*m_attn_mask.dtype().itemsize());
-    #define CUDA_ATTNMASK_BLOCK_SIZE 256
-    int32_t total_size = window_size*window_size*window_size*window_size;
+    static int __ss = 0;
+    
+#define CUDA_ATTNMASK_BLOCK_SIZE 256
     CUDAContext* cuda_ctx = static_cast<CUDAContext*>(m_owner->backend_ctx()->context);
-    for (uint32_t h = 0; h < nh_w-1; ++h) {
-        uint32_t offset = h*nw_w+(nw_w-1);
-        float* data = m_attn_mask.unsafe_ptr<float>(offset*m_attn_mask.stride_at(1));
-        __roolh_kernel<float><<<get_cuda_gridsize(total_size, CUDA_ATTNMASK_BLOCK_SIZE),
-            CUDA_ATTNMASK_BLOCK_SIZE, 0, cuda_ctx->stream(0)>>>(data, -100.f, window_size, shift_size);
-    }
-    for (uint32_t w = 0; w < nw_w-1; ++w) {
-        uint32_t offset = (nh_w-1)*nw_w+w;
-        float* data = m_attn_mask.unsafe_ptr<float>(offset*m_attn_mask.stride_at(1));
-        __roolw_kernel<float><<<get_cuda_gridsize(total_size, CUDA_ATTNMASK_BLOCK_SIZE),
-            CUDA_ATTNMASK_BLOCK_SIZE, 0, cuda_ctx->stream(0)>>>(data, -100.f, window_size, shift_size);
-    }
-    uint32_t offset = (nh_w-1)*nw_w+(nw_w-1);
-    float* data = m_attn_mask.unsafe_ptr<float>(offset*m_attn_mask.stride_at(1));
-    __roolhw_kernel<float><<<get_cuda_gridsize(total_size, CUDA_ATTNMASK_BLOCK_SIZE),
-        CUDA_ATTNMASK_BLOCK_SIZE, 0, cuda_ctx->stream(0)>>>(data, -100.f, window_size, shift_size);
+    float* data = m_attn_mask.unsafe_ptr<float>(0);
+    __rool_kernel<float><<<get_cuda_gridsize(m_attn_mask.total_size(), CUDA_ATTNMASK_BLOCK_SIZE),
+        CUDA_ATTNMASK_BLOCK_SIZE, 0, cuda_ctx->stream(0)>>>(data, -100.f, nh_w, nw_w, m_attn_mask.stride_at(1), window_size, shift_size);
+    cuda_ctx->stream_sync(cuda_ctx->stream(0));
 }
 
 bool SwinLayerFunc::plan_forward_gpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
@@ -187,6 +152,8 @@ bool SwinLayerFunc::plan_forward_gpu(const tensor_list& inputs, tensor_list& out
     m_self_att_omm->plan_forward_gpu(__inputs, __outputs, context);
     if (m_param.shift_size > 0) {
         _create_attn_mask_gpu(inputs, context);
+        DUMP_TENSOR_TO_TXT(m_attn_mask.cpu(), "m_attn_mask");
+        DUMP_TENSOR_TO_BIN(m_attn_mask.cpu(), "m_attn_mask");
     }
     return true;
 }
@@ -207,6 +174,8 @@ bool SwinLayerFunc::_forward_gpu(const tensor_list& inputs, tensor_list& outputs
         uint32_t padding[6] = {0, 0, 0, m_pad_right, 0, m_pad_bottom};
         _parallel_sync(m_tp, m_pad_out.dim_at(0), nchw_pad, std::ref(m_lnb_out), std::ref(m_pad_out), padding, 0.f, cuda_ctx);
         __route = m_pad_out;
+        DUMP_TENSOR_TO_TXT(m_pad_out.cpu(), "m_pad_out");
+        DUMP_TENSOR_TO_BIN(m_pad_out.cpu(), "m_pad_out");
     } else {
         __route = m_lnb_out;
     }
@@ -224,6 +193,8 @@ bool SwinLayerFunc::_forward_gpu(const tensor_list& inputs, tensor_list& outputs
         m_roll_func->plan_forward_gpu(__inputs, __outputs, context);
         m_roll_func->_forward_gpu(__inputs, __outputs, context);
         __route = m_roll_out;
+        DUMP_TENSOR_TO_TXT(m_roll_out.cpu(), "m_roll_out");
+        DUMP_TENSOR_TO_BIN(m_roll_out.cpu(), "m_roll_out");
     }
 
     // 2. partition windows
@@ -239,9 +210,13 @@ bool SwinLayerFunc::_forward_gpu(const tensor_list& inputs, tensor_list& outputs
     if (m_param.shift_size > 0) {
         __inputs.push_back(m_attn_mask);
     }
+    DUMP_TENSOR_TO_TXT(m_permute_out.cpu(), "m_permute_out");
+    DUMP_TENSOR_TO_BIN(m_permute_out.cpu(), "m_permute_out");
     __outputs = {m_self_att_out};
     m_self_att->_forward_gpu(__inputs, __outputs, context);
-
+    
+    DUMP_TENSOR_TO_TXT(m_self_att_out.cpu(), "m_self_att_out");
+    DUMP_TENSOR_TO_BIN(m_self_att_out.cpu(), "m_self_att_out");
     
     // 3.1 attention projection
     __inputs = {m_self_att_out};
@@ -270,6 +245,8 @@ bool SwinLayerFunc::_forward_gpu(const tensor_list& inputs, tensor_list& outputs
         m_roll_func->plan_forward_gpu(__inputs, __outputs, context);
         m_roll_func->_forward_gpu(__inputs, __outputs, context);
         __route = m_roll_out;
+        DUMP_TENSOR_TO_TXT(m_roll_out.cpu(), "m_roll_out1");
+        DUMP_TENSOR_TO_BIN(m_roll_out.cpu(), "m_roll_out1");
     } else {
         __route = m_permute_out;
     }
@@ -286,6 +263,8 @@ bool SwinLayerFunc::_forward_gpu(const tensor_list& inputs, tensor_list& outputs
         m_slice_func->plan_forward_gpu(__inputs, __outputs, context);
         m_slice_func->_forward_gpu(__inputs, __outputs, context);
         m_lnb_out.reshape({m_lnb_out.dim_at(0), m_lnb_out.dim_at(1)*m_lnb_out.dim_at(2), m_lnb_out.dim_at(3)});
+        DUMP_TENSOR_TO_TXT(m_lnb_out.cpu(), "m_slice");
+        DUMP_TENSOR_TO_BIN(m_lnb_out.cpu(), "m_slice");
 
         // 4.2 shortcut
         __inputs = {m_lnb_out, inputs[0]};

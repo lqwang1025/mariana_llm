@@ -10,6 +10,7 @@
  */
 
 #include <core/tensor.h>
+#include <core/impl/allocator.h>
 
 #if defined(MLM_USE_CUDA)
 #include <core/backend/gpu/cuda_allocator.h>

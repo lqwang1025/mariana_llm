@@ -19,6 +19,10 @@
 namespace mariana {
 
 bool Conv2dFunc::plan_forward_gpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
+    if (inputs.size() != 1) {
+        MLOG(ERROR)<<"Conv2d input's size must be 1 now:"<<inputs.size();
+        return false;
+    }
     CUDAContext* cuda_ctx = static_cast<CUDAContext*>(m_owner->backend_ctx()->context);
     cuda_set_device(cuda_ctx->device);
     if (m_weight.device() != DataOn::GPU) {

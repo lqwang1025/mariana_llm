@@ -22,6 +22,8 @@ namespace mariana {
 
 struct NormParam;
 
+void group_normlization(SchedParam sched_param, const Tensor& input, const Tensor& weight, const Tensor& bias, Tensor& out, NormParam& norm_param, CUDAContext* cuda_ctx);
+
 void layer_normlization(SchedParam sched_param, const Tensor& input, const Tensor& weight, const Tensor& bias, const NormParam& norm_param, Tensor& out, CUDAContext* cuda_ctx);
 
 } // namespace mariana

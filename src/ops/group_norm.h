@@ -21,6 +21,12 @@ struct GroupNormFunc : public Function {
     bool plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 protected:
     bool _forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+#if defined(MLM_USE_CUDA)
+public:
+    bool plan_forward_gpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+protected:
+    bool _forward_gpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+#endif
 private:
     Tensor m_weight;
     Tensor m_bias;

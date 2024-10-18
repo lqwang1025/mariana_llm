@@ -21,8 +21,13 @@ struct GroundingDinoSinePositionEmbeddingFunc : public Function {
     bool init(const ModelParam& param, const std::string& node_name)override;
     bool plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 protected:
-    friend class SwinLayerFunc;
     bool _forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+#if defined(MLM_USE_CUDA)
+public:
+    bool plan_forward_gpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+protected:
+    bool _forward_gpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
+#endif    
 protected:
     const float m_scale         = 2*M_PI;
     float       m_temperature   = 1.f;

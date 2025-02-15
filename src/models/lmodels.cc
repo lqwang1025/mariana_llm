@@ -21,6 +21,7 @@
 #include <core/device_type.h>
 
 #include <utils/mariana_define.h>
+#include <utils/dtype_utils.h>
 #include <utils/rapidjson/document.h>
 
 namespace mariana {
@@ -62,15 +63,22 @@ bool LModel::_load_safetensors(const char* safe_tensors, ModelParam& param, Safe
             sti.dtype = TypeMeta::make<int64_t>();
         } else if (m.value.GetObject()["dtype"].GetString() == std::string("F32")) {
             sti.dtype = TypeMeta::make<float>();
+        } else if (m.value.GetObject()["dtype"].GetString() == std::string("BF16")) {
+            sti.dtype = TypeMeta::make<float>();
         } else {
             MLOG(ERROR)<<"Unsupport dtype:"<<m.value.GetObject()["dtype"].GetString();
             return false;
         }
+        MLOG(INFO)<<m.name.GetString();
         for (auto&v : m.value.GetObject()["shape"].GetArray()) {
             sti.shape.push_back(v.GetInt());
         }
         for (auto&v : m.value.GetObject()["data_offsets"].GetArray()) {
-            sti.data_offset.push_back(v.GetInt());
+            if (v.IsInt64()) {
+                sti.data_offset.push_back(v.GetInt64());
+            } else if (v.IsInt()) {
+                sti.data_offset.push_back(v.GetInt());
+            }
         }
         size_t byte_size = sti.data_offset[1]-sti.data_offset[0];
         sti.data = allocator->alloc(byte_size);

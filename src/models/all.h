@@ -12,6 +12,7 @@
 #ifndef __MODELS_ALL_H__
 #define __MODELS_ALL_H__
 
+#include <models/qwen2.h>
 #include <models/grounding_dino.h>
 
 #endif /* __MODELS_ALL_H__ */

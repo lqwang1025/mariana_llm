@@ -23,6 +23,7 @@ namespace mariana {
 
 static void _register_models() {
     ADD_LMODEL(GroundingDINO, GroundingDINO);
+    ADD_LMODEL(Qwen2, Qwen2);
 }
 
 void init_lmodels_module() {

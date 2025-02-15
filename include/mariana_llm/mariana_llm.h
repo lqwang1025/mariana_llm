@@ -21,9 +21,10 @@
 namespace mariana {
 
 enum class LModelCategory : int16_t {
-    None = 0,
-    Bert = 1,
-    GroundingDINO = 2
+    None          = 0,
+    Qwen2         = 1,
+    Bert          = 2,
+    GroundingDINO = 3
 };
 
 struct PostProcessInfo {

@@ -36,7 +36,7 @@ struct ModelParam {
     struct SafeTensorInfo {
         TypeMeta dtype;
         std::vector<int32_t> shape;
-        std::vector<int32_t> data_offset;
+        std::vector<int64_t> data_offset;
         void* data{nullptr};
     };
     std::unordered_map<std::string, SafeTensorInfo> sti_map;
@@ -47,9 +47,16 @@ struct ModelParam {
     int32_t           n_ff                    = 0;
     int32_t           patch_size              = 0;
     int32_t           pad_token_id            = 0;
+    int32_t           bos_token_id            = 0;
+    int32_t           eos_token_id            = 0;
     int32_t           max_position_embeddings = 0;
     int32_t           type_vocab_size         = 0;
     float             layer_norm_eps          = 0.f;
+    bool              tie_word_embeddings     = false;
+    int32_t           num_key_value_heads     = 0;
+    int32_t           intermediate_size       = 0;
+    std::string       hidden_act              = "";
+    
     // swin parameter
     int32_t           window_size             = 0;
     int32_t           shift_size              = 0;

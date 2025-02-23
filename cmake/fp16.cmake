@@ -1,0 +1,27 @@
+set(FP16_ROOT ${3RD_PARTY}/FP16)
+if(NOT EXISTS ${FP16_ROOT}/include AND NOT EXISTS ${FP16_ROOT}/lib)
+  include(ExternalProject)
+
+  # set(FP16_GIT_TAG  v0.6.0)
+  set(FP16_GIT_URL https://github.com/Maratyszcza/FP16)
+  set(FP16_CONFIGURE cd ${FP16_ROOT}/src/FP16 && cmake -B build -D CMAKE_INSTALL_PREFIX=${FP16_ROOT}
+	-D CMAKE_POSITION_INDEPENDENT_CODE=ON -D BUILD_SHARED_LIBS=OFF -D WITH_GFLAGS=OFF -D WITH_GTEST=OFF -D WITH_UNWIND=OFF -D CMAKE_C_COMPILER=${CMAKE_C_COMPILER} -D CMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER} .)
+  set(FP16_MAKE  cd ${FP16_ROOT}/src/FP16/build && make -j8)
+  set(FP16_INSTALL cd ${FP16_ROOT}/src/FP16/build && make install)
+
+  ExternalProject_Add(FP16
+	PREFIX            ${FP16_ROOT}
+	GIT_REPOSITORY    ${FP16_GIT_URL}
+	GIT_TAG           ${FP16_GIT_TAG}
+	CONFIGURE_COMMAND ${FP16_CONFIGURE}
+	BUILD_COMMAND     ${FP16_MAKE}
+	INSTALL_COMMAND   ${FP16_INSTALL})
+endif()
+
+set(FP16_LIB_DIR ${FP16_ROOT}/lib)
+set(FP16_INCLUDE_DIR  ${FP16_ROOT}/include)
+
+link_directories(${FP16_LIB_DIR})
+include_directories(${FP16_INCLUDE_DIR})
+
+# list(APPEND MARIANA_EXTERN_LIB -lFP16)

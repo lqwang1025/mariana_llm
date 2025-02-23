@@ -2,6 +2,7 @@ file(GLOB CURRENT_SOURCE_PATH ${CMAKE_CURRENT_LIST_DIR}/*.cc)
 file(GLOB CURRENT_HEAD_PATH ${CMAKE_CURRENT_LIST_DIR}/*.h)
 include(${CMAKE_SOURCE_DIR}/cmake/glog.cmake)
 include(${CMAKE_SOURCE_DIR}/cmake/abseil.cmake)
+include(${CMAKE_SOURCE_DIR}/cmake/fp16.cmake)
 
 set(LIB_NAME mariana_llm_utils)
 add_library(${LIB_NAME} OBJECT ${CURRENT_SOURCE_PATH})

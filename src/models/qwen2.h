@@ -24,7 +24,6 @@ public:
     Qwen2() {}
     virtual ~Qwen2() {}
     bool load_token(const char* dir_path);
-    bool load_param(const char* dir_path, AnyMap& qwen2_param, ModelParam& qwen2_model_param);
     virtual AIResult compute(ExeContext& context)override;
     virtual bool make_graph(const char* dir_path, GptParams& gpt_params, ExeContext& context)override;
 };

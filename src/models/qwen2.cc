@@ -23,6 +23,8 @@
 #include <utils/mariana_define.h>
 #include <utils/rapidjson/document.h>
 
+#include <token/llama_token_fast.h>
+
 #include <absl/strings/match.h>
 #include <absl/strings/str_format.h>
 
@@ -32,13 +34,21 @@ AIResult Qwen2::compute(ExeContext& context) {
     
 }
 
-bool Qwen2::load_param(const char* dir_path, AnyMap& qwen2_param, ModelParam& qwen2_model_param) {
-    return true;
+bool Qwen2::load_token(const char* dir_path) {
+    AnyMap     token_param;
+    std::string token_cfg_path = os_path_join(dir_path, "tokenizer_config.json");
+    this->_load_config(token_cfg_path.c_str(), token_param);
+    
+    std::string tokenizer_class;
+    TRY_ANY_CAST(tokenizer_class, token_param.at("tokenizer_class"), return false);
+    m_tokenizer = std::make_shared<LlamaFastTokenizer>();
+    bool ok = m_tokenizer->load(dir_path, token_param);
+    return ok;
 }
 
 bool Qwen2::make_graph(const char* dir_path, GptParams& gpt_params, ExeContext& context) {
     TRACE();
-    
+    this->load_token(dir_path);
     AnyMap     qwen2_param;
     std::string qwen2_param_config = os_path_join(dir_path, "config.json");
     bool ok = _load_config(qwen2_param_config.c_str(), qwen2_param);
@@ -61,9 +71,10 @@ bool Qwen2::make_graph(const char* dir_path, GptParams& gpt_params, ExeContext& 
             MVLOG(4)<<"read the qwen weight:"<<key;
         }
     };
-    MLOG(INFO)<<safe_tensors;
     ok = ok &  _load_safetensors(safe_tensors.c_str(), model_param, callback);
-    
+    m_graph = std::make_shared<Graph>(gpt_params.n_threads);
+    NodeSharedPtr inputs_embedding_pass = m_graph->make_root(model_param, "model.embed_tokens");
+    NodeSharedPtr inputs_embedding = m_graph->make_node(OpCategory::GetRows, model_param, {inputs_embedding_pass}, "model.text_backbone.embeddings.word_embeddings");
     MLOG(INFO)<<"DDDDDDDd:"<<model_param.hidden_act;
     return ok;
 }

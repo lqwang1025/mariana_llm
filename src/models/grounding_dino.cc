@@ -474,7 +474,8 @@ bool GroundingDINO::load_token(const char* dir_path) {
         return false;
     }
     m_tokenizer = std::make_shared<BertTokenizer>();
-    bool ok = m_tokenizer->load(vocab_txt);
+    AnyMap _place_holder;
+    bool ok = m_tokenizer->load(vocab_txt, _place_holder);
     MLOG_IF(ERROR, !ok)<<" tokenizer load failed";
     return ok;
 }

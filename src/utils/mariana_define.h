@@ -165,7 +165,7 @@ using google::INFO;
     try {                                                               \
         reciver = ::absl::any_cast<decltype(reciver)>(any);             \
     } catch(const absl::bad_any_cast& e) {                              \
-        MLOG(ERROR)<<e.what()<<" for "<<STR(reciver);                   \
+        MLOG(WARNING)<<e.what()<<" for "<<STR(reciver);                 \
         ctrl;                                                           \
     }
 
@@ -182,6 +182,8 @@ using google::INFO;
 #else
 #define AUTOTIME
 #endif
+
+#define pass (void)0
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))

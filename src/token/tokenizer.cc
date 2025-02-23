@@ -18,7 +18,7 @@
 
 namespace mariana {
 
-bool Tiktoken::load(const std::string& filename) {
+bool Tiktoken::load(const std::string& filename, const AnyMap& param) {
     std::ifstream tok_file(filename);
     if (!tok_file.good()) {
         MLOG(ERROR)<<"Open file "<<filename<<" failed!";

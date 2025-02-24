@@ -23,7 +23,7 @@ IF (NOT DEFINED CMAKE_INSTALL_PREFIX)
    SET (CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install" CACHE PATH "Mariana Installation Directory")
  ENDIF()
  
-project(mariana_llm VERSION ${MAR_VERSION} LANGUAGES C CXX)
+project(mariana_llm VERSION ${MAR_VERSION} LANGUAGES C CXX CUDA)
 
 option(OPEN_PROFILER "Profiler this library" OFF)
 option(USE_CUDA "Compile with cuda" OFF)

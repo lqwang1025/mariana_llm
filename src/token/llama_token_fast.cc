@@ -61,8 +61,8 @@ bool LlamaFastTokenizer::load(const std::string& filename, const AnyMap& param) 
     // ])");
     }
     
-    std::string token_cfg_path = os_path_join(dir_path, "tokenizer_config.json");
-    if file_exist("");
+    // std::string token_cfg_path = os_path_join(dir_path, "tokenizer_config.json");
+    // if file_exist("");
 }
 
 std::vector<int> LlamaFastTokenizer::encode(const std::string& str) {

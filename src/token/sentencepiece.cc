@@ -20,7 +20,7 @@ namespace mariana {
  
 bool SentencepieceTokenizer::load(const std::string& filename, const AnyMap& param) {
     bool add_bos_token = false;
-    if (param.count("add_bos_token")) {
+    if (param.count("add_bos_token")) { 
         TRY_ANY_CAST(add_bos_token, param.at("add_bos_token"), pass);
     }
     bool add_eos_token = false;
@@ -74,9 +74,26 @@ bool SentencepieceTokenizer::load(const std::string& filename, const AnyMap& par
         std::string content;
         TRY_ANY_CAST(content, token.at("content"), pass);
         int32_t id;
+        _pieces.insert({content, id});
         TRY_ANY_CAST(id, token.at("id"), pass);
-        MLOG(INFO)<<"D:"<<id;
     }
+    AnyMap model;
+    TRY_ANY_CAST(model, token_param.at("model"), pass);
+    AnyMap vocabs;
+    TRY_ANY_CAST(vocabs, model.at("vocab"), pass);
+    for (auto& vocab : vocabs) {
+        std::string content = vocab.first;
+        int32_t idx = 0;
+        TRY_ANY_CAST(idx, vocab.second, pass);
+        _pieces.insert({content, idx});
+    }
+    _decoder.resize(_pieces.size());
+    for (auto& pieces : _pieces) {
+        _decoder[pieces.second] = pieces.first;
+    }
+    
+    MLOG(INFO)<<_decoder[0]<<" "<<_decoder[51461];
+    return true;
 }
 
 std::vector<int> SentencepieceTokenizer::encode(const std::string& str) {

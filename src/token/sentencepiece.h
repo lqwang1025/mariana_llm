@@ -28,6 +28,7 @@ public:
     virtual std::string decode(int id) override;
 private:
     std::unordered_map<std::string, int> _pieces;
+    std::vector<std::string> _decoder;
 };
 
 } // namespace mariana

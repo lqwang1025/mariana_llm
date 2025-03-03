@@ -20,10 +20,11 @@
 #include <mariana_llm/mariana_llm.h>
 
 #include <utils/sys.h>
+#include <utils/json_utils.h>
 #include <utils/mariana_define.h>
 #include <utils/rapidjson/document.h>
 
-#include <token/llama_token_fast.h>
+#include <token/sentencepiece.h>
 
 #include <absl/strings/match.h>
 #include <absl/strings/str_format.h>
@@ -37,11 +38,11 @@ AIResult Qwen2::compute(ExeContext& context) {
 bool Qwen2::load_token(const char* dir_path) {
     AnyMap     token_param;
     std::string token_cfg_path = os_path_join(dir_path, "tokenizer_config.json");
-    this->_load_config(token_cfg_path.c_str(), token_param);
+    load_config(token_cfg_path.c_str(), token_param);
     
     std::string tokenizer_class;
     TRY_ANY_CAST(tokenizer_class, token_param.at("tokenizer_class"), return false);
-    m_tokenizer = std::make_shared<LlamaFastTokenizer>();
+    m_tokenizer = std::make_shared<SentencepieceTokenizer>();
     bool ok = m_tokenizer->load(dir_path, token_param);
     return ok;
 }
@@ -51,7 +52,7 @@ bool Qwen2::make_graph(const char* dir_path, GptParams& gpt_params, ExeContext& 
     this->load_token(dir_path);
     AnyMap     qwen2_param;
     std::string qwen2_param_config = os_path_join(dir_path, "config.json");
-    bool ok = _load_config(qwen2_param_config.c_str(), qwen2_param);
+    bool ok = load_config(qwen2_param_config.c_str(), qwen2_param);
     ModelParam model_param;
     TRY_ANY_CAST(model_param.n_vocab, qwen2_param.at("vocab_size"), return false);
     TRY_ANY_CAST(model_param.n_layer, qwen2_param.at("num_hidden_layers"), return false);

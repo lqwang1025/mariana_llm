@@ -55,7 +55,6 @@ protected:
                                param.sti_map[key] = sti;
                            });
     bool _backend_setup(GptParams& gpt_params, ExeContext& context);
-    bool _load_config(const char* config_file, AnyMap& any_map);
 protected:
     std::shared_ptr<Graph>     m_graph;
     std::shared_ptr<Tokenizer> m_tokenizer;

@@ -1,22 +1,24 @@
 /*
- *        (C) COPYRIGHT Daniel Wang Limited.
+ *        (C) COPYRIGHT Ingenic Limited.
  *             ALL RIGHTS RESERVED
  *
- * File       : llama_token_fast.cc
- * Authors    : lqwang@pandora
- * Create Time: 2025-02-19:20:14:58
+ * File       : sentencepiece.cc
+ * Authors    : lqwang@SMT23090002
+ * Create Time: 2025-03-03:13:34:53
  * Description:
  * 
  */
 
-#include <token/llama_token_fast.h>
+#include <token/sentencepiece.h>
 
 #include <utils/sys.h>
+#include <utils/json_utils.h>
 #include <utils/mariana_define.h>
 
 namespace mariana {
 
-bool LlamaFastTokenizer::load(const std::string& filename, const AnyMap& param) {
+ 
+bool SentencepieceTokenizer::load(const std::string& filename, const AnyMap& param) {
     bool add_bos_token = false;
     if (param.count("add_bos_token")) {
         TRY_ANY_CAST(add_bos_token, param.at("add_bos_token"), pass);
@@ -60,17 +62,30 @@ bool LlamaFastTokenizer::load(const std::string& filename, const AnyMap& param) 
     //     {"type": "function", "function": {"name": "google_search", "arguments": {"query": "2+2"}}}
     // ])");
     }
-    
-    // std::string token_cfg_path = os_path_join(dir_path, "tokenizer_config.json");
-    // if file_exist("");
+    std::string token_cfg_path = os_path_join(filename, "tokenizer.json");
+    AnyMap token_param;
+    load_config(token_cfg_path.c_str(), token_param);
+    for (auto it : token_param) {
+        MLOG(INFO)<<it.first;
+    }
+    std::vector<AnyMap> added_tokens;
+    TRY_ANY_CAST(added_tokens, token_param.at("added_tokens"), pass);
+    for (auto& token : added_tokens) {
+        std::string content;
+        TRY_ANY_CAST(content, token.at("content"), pass);
+        int32_t id;
+        TRY_ANY_CAST(id, token.at("id"), pass);
+        MLOG(INFO)<<"D:"<<id;
+    }
 }
 
-std::vector<int> LlamaFastTokenizer::encode(const std::string& str) {
+std::vector<int> SentencepieceTokenizer::encode(const std::string& str) {
     
 }
 
-std::string LlamaFastTokenizer::decode(int id) {
+std::string SentencepieceTokenizer::decode(int id) {
     
 }
+
 
 } // namespace mariana

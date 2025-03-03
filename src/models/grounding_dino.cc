@@ -27,6 +27,7 @@
 #include <mariana_llm/mariana_llm.h>
 
 #include <utils/sys.h>
+#include <utils/json_utils.h>
 #include <utils/mariana_define.h>
 #include <utils/rapidjson/document.h>
 
@@ -205,7 +206,7 @@ bool GroundingDINO::make_graph(const char* dir_path, GptParams& gpt_params, ExeC
                          bert_model_param, dino_model_param, swin_model_param);
     AnyMap     preprocessor_param;
     std::string preprocess_config = os_path_join(dir_path, "preprocessor_config.json");
-    ok = ok && _load_config(preprocess_config.c_str(), preprocessor_param);
+    ok = ok && load_config(preprocess_config.c_str(), preprocessor_param);
     if (!ok) {
         MLOG(ERROR)<<"Load config failed";
         return ok;
@@ -513,13 +514,13 @@ bool GroundingDINO::load_param(const char* dir_path, AnyMap& bert_param, AnyMap&
     ok = ok & _load_safetensors(safe_tensors.c_str(), dino_model_param, dino_callback);
     
     std::string dino_config = os_path_join(dir_path, "config.json");
-    ok = ok && _load_config(dino_config.c_str(), dino_param);
+    ok = ok && load_config(dino_config.c_str(), dino_param);
     
     std::string bert_config = os_path_join(dir_path, "bert/config.json");
-    ok = ok && _load_config(bert_config.c_str(), bert_param);
+    ok = ok && load_config(bert_config.c_str(), bert_param);
 
     std::string swin_config = os_path_join(dir_path, "swin/config.json");
-    ok = ok && _load_config(swin_config.c_str(), swin_param);
+    ok = ok && load_config(swin_config.c_str(), swin_param);
     
     ok = ok && load_token(dir_path);
     MLOG_IF(ERROR, !ok)<<"load param failed";

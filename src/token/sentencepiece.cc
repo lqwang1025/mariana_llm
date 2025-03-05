@@ -9,6 +9,10 @@
  * 
  */
 
+#include <string>
+#include <locale>
+#include <codecvt>
+
 #include <token/sentencepiece.h>
 
 #include <utils/sys.h>
@@ -74,8 +78,8 @@ bool SentencepieceTokenizer::load(const std::string& filename, const AnyMap& par
         std::string content;
         TRY_ANY_CAST(content, token.at("content"), pass);
         int32_t id;
-        _pieces.insert({content, id});
         TRY_ANY_CAST(id, token.at("id"), pass);
+        _pieces.insert({content, id});
     }
     AnyMap model;
     TRY_ANY_CAST(model, token_param.at("model"), pass);
@@ -83,13 +87,18 @@ bool SentencepieceTokenizer::load(const std::string& filename, const AnyMap& par
     TRY_ANY_CAST(vocabs, model.at("vocab"), pass);
     for (auto& vocab : vocabs) {
         std::string content = vocab.first;
-        int32_t idx = 0;
+        int32_t idx;
         TRY_ANY_CAST(idx, vocab.second, pass);
         _pieces.insert({content, idx});
     }
+    
+    // std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
     _decoder.resize(_pieces.size());
     for (auto& pieces : _pieces) {
         _decoder[pieces.second] = pieces.first;
+        // std::wstring str = converter.from_bytes(pieces.first);
+        // std::wstring ssstr = converter.to_bytes(str);
+        // std::wcout<< pieces.second<<" "<<ssstr<<std::endl;
     }
     
     MLOG(INFO)<<_decoder[0]<<" "<<_decoder[51461];

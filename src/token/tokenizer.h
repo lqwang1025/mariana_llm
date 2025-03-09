@@ -39,6 +39,7 @@ public:
     virtual std::string decode(int id) = 0;
 protected:    
     minja::chat_template *_chat_tmpl = nullptr;
+    std::vector<std::string> _regexes;
 };
 
 class Tiktoken : public Tokenizer {

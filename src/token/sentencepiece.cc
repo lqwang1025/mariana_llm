@@ -14,6 +14,7 @@
 #include <codecvt>
 
 #include <token/sentencepiece.h>
+#include <token/unicode.h>
 
 #include <utils/sys.h>
 #include <utils/json_utils.h>
@@ -56,22 +57,28 @@ bool SentencepieceTokenizer::load(const std::string& filename, const AnyMap& par
     TRY_ANY_CAST(chat_template, param.at("chat_template"), pass);
     if (chat_template.empty() == false) {
         _chat_tmpl = new minja::chat_template(chat_template, bos_token, eos_token);
-        minja::chat_template_inputs inputs;
-        inputs.messages = json::parse(R"([
-        {"role": "user", "content": "Hello"},
-        {"role": "assistant", "content": "Hi there"}
-    ])");
-        inputs.add_generation_prompt = true;
-    //     inputs.tools = json::parse(R"([
-    //     {"type": "function", "function": {"name": "google_search", "arguments": {"query": "2+2"}}}
-    // ])");
     }
     std::string token_cfg_path = os_path_join(filename, "tokenizer.json");
     AnyMap token_param;
     load_config(token_cfg_path.c_str(), token_param);
-    for (auto it : token_param) {
-        MLOG(INFO)<<it.first;
+    
+    AnyMap pre_tokenizer;
+    TRY_ANY_CAST(pre_tokenizer, token_param.at("pre_tokenizer"), pass);
+    std::vector<AnyMap> pretokenizers;
+    TRY_ANY_CAST(pretokenizers, pre_tokenizer.at("pretokenizers"), pass);
+    _regexes.clear();
+    for (auto& it : pretokenizers) {
+        std::string type;
+        TRY_ANY_CAST(type, it.at("type"), pass);
+        if (type == "Split") {
+            AnyMap pattern;
+            TRY_ANY_CAST(pattern, it.at("pattern"), pass);
+            std::string regex;
+            TRY_ANY_CAST(regex, pattern.at("Regex"), pass);
+            _regexes.push_back(regex);
+        }
     }
+    
     std::vector<AnyMap> added_tokens;
     TRY_ANY_CAST(added_tokens, token_param.at("added_tokens"), pass);
     for (auto& token : added_tokens) {
@@ -100,8 +107,23 @@ bool SentencepieceTokenizer::load(const std::string& filename, const AnyMap& par
         // std::wstring ssstr = converter.to_bytes(str);
         // std::wcout<< pieces.second<<" "<<ssstr<<std::endl;
     }
+    minja::chat_template_inputs inputs;
+    inputs.messages = json::parse(R"([
+        {"role": "user", "content": "Hello"}
+    ])");
+    inputs.add_generation_prompt = true;
+    std::string prompt = _chat_tmpl->apply(inputs);
+    std::string decoded;
+    std::vector<uint32_t> cpts = unicode_cpts_from_utf8(prompt);
+    for (const auto cpt : cpts) {
+        const auto utf8 = unicode_byte_to_utf8(cpt);
+        decoded += unicode_utf8_to_byte(utf8);
+    }
+    MLOG(INFO)<<decoded;
     
-    MLOG(INFO)<<_decoder[0]<<" "<<_decoder[51461];
+    // std::vector<std::string> tests = unicode_regex_split(prompt, _regexes);
+    // for (auto it : tests)
+    //     MLOG(INFO)<<it;
     return true;
 }
 

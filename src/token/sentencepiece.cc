@@ -99,36 +99,39 @@ bool SentencepieceTokenizer::load(const std::string& filename, const AnyMap& par
         _pieces.insert({content, idx});
     }
     
-    // std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
     _decoder.resize(_pieces.size());
     for (auto& pieces : _pieces) {
         _decoder[pieces.second] = pieces.first;
-        // std::wstring str = converter.from_bytes(pieces.first);
-        // std::wstring ssstr = converter.to_bytes(str);
-        // std::wcout<< pieces.second<<" "<<ssstr<<std::endl;
     }
-    minja::chat_template_inputs inputs;
-    inputs.messages = json::parse(R"([
-        {"role": "user", "content": "Hello"}
-    ])");
-    inputs.add_generation_prompt = true;
-    std::string prompt = _chat_tmpl->apply(inputs);
-    std::string decoded;
-    std::vector<uint32_t> cpts = unicode_cpts_from_utf8(prompt);
-    for (const auto cpt : cpts) {
-        const auto utf8 = unicode_byte_to_utf8(cpt);
-        decoded += unicode_utf8_to_byte(utf8);
-    }
-    MLOG(INFO)<<decoded;
     
-    // std::vector<std::string> tests = unicode_regex_split(prompt, _regexes);
-    // for (auto it : tests)
-    //     MLOG(INFO)<<it;
+    // minja::chat_template_inputs inputs;
+    // inputs.messages = json::parse(R"([
+    //     {"role": "user", "content": "Hello"}
+    // ])");
+    // inputs.add_generation_prompt = true;
+    // std::string prompt = _chat_tmpl->apply(inputs);
+    // std::string decoded;
+    // std::vector<uint32_t> cpts = unicode_cpts_from_utf8(prompt);
+    // for (const auto cpt : cpts) {
+    //     const auto utf8 = unicode_byte_to_utf8(cpt);
+    //     decoded += unicode_utf8_to_byte(utf8);
+    // }
+    // MLOG(INFO)<<decoded;
     return true;
 }
 
 std::vector<int> SentencepieceTokenizer::encode(const std::string& str) {
-    
+    std::vector<std::string> tokens = unicode_regex_split(str, _regexes);
+    for (auto& token : tokens) {
+        MLOG(INFO)<<token.size()<<" "<<token;
+        int32_t offset = 0;
+        while (offset < token.size()) {
+            auto len = unicode_len_utf8(token[offset]);
+            std::string snap = token.substr(offset, len);
+            offset += len;
+            MLOG(INFO)<<snap<<" "<<len;
+        }   
+    }
 }
 
 std::string SentencepieceTokenizer::decode(int id) {

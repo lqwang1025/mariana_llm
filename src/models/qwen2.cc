@@ -44,6 +44,8 @@ bool Qwen2::load_token(const char* dir_path) {
     TRY_ANY_CAST(tokenizer_class, token_param.at("tokenizer_class"), return false);
     m_tokenizer = std::make_shared<SentencepieceTokenizer>();
     bool ok = m_tokenizer->load(dir_path, token_param);
+    std::string prompt = "给我介绍一下大型语言模型 transformers。";
+    m_tokenizer->encode(prompt);
     return ok;
 }
 

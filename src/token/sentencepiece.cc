@@ -9,6 +9,8 @@
  * 
  */
 
+#include <set>
+#include <utility>
 #include <string>
 #include <locale>
 #include <codecvt>
@@ -122,16 +124,29 @@ bool SentencepieceTokenizer::load(const std::string& filename, const AnyMap& par
 
 std::vector<int> SentencepieceTokenizer::encode(const std::string& str) {
     std::vector<std::string> tokens = unicode_regex_split(str, _regexes);
+    auto get_pairs = [=](const std::vector<std::string>& word) -> std::set<std::pair<std::string, std::string>> {
+        std::set<std::pair<std::string, std::string>> pairs;
+        std::string prev = word[0];
+        for (size_t i = 1; i < word.size(); ++i) {
+            auto pair = std::make_pair(prev, word[i]);
+            prev = word[i];
+            pairs.insert(pair);
+        }
+        return pairs;
+    };
     for (auto& token : tokens) {
-        MLOG(INFO)<<token.size()<<" "<<token;
-        int32_t offset = 0;
+        size_t offset = 0;
+        std::vector<std::string> word;
         while (offset < token.size()) {
             auto len = unicode_len_utf8(token[offset]);
             std::string snap = token.substr(offset, len);
             offset += len;
-            MLOG(INFO)<<snap<<" "<<len;
-        }   
+            word.push_back(snap);
+        }
+        auto pairs = get_pairs(word);
+        
     }
+    return {};
 }
 
 std::string SentencepieceTokenizer::decode(int id) {

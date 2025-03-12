@@ -44,8 +44,15 @@ bool Qwen2::load_token(const char* dir_path) {
     TRY_ANY_CAST(tokenizer_class, token_param.at("tokenizer_class"), return false);
     m_tokenizer = std::make_shared<SentencepieceTokenizer>();
     bool ok = m_tokenizer->load(dir_path, token_param);
-    std::string prompt = "给我介绍一下大型语言模型 transformers。";
-    m_tokenizer->encode(prompt);
+    std::string str = R"([{"role": "system", "content": "你是一个有用的助手。"},
+                {"role": "user", "content": "给我介绍一下大型语言模型 transformers。"}
+               ])";
+    std::string prompt = m_tokenizer->apply_chat_template(str);
+    MLOG(INFO)<<prompt;
+    auto tokens = m_tokenizer->encode(prompt);
+    for (auto token : tokens) {
+        MLOG(INFO)<<token;
+    }
     return ok;
 }
 

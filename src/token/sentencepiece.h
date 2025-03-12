@@ -12,8 +12,10 @@
 #ifndef __SENTENCEPIECE_H__
 #define __SENTENCEPIECE_H__
 
+#include <utility>
 #include <vector>
 #include <unordered_map>
+#include <map>
 
 #include <token/tokenizer.h>
 
@@ -24,10 +26,10 @@ public:
     SentencepieceTokenizer() = default;
     ~SentencepieceTokenizer() = default;
     virtual bool load(const std::string& filename, const AnyMap& param) override;
-    virtual std::vector<int> encode(const std::string& str) override;
+    virtual void encode(const std::string& str, std::vector<int>& tokens) override;
     virtual std::string decode(int id) override;
 private:
-    std::unordered_map<std::string, int> _pieces;
+    std::map<std::pair<std::string, std::string>, int> _bpe_ranks;
     std::vector<std::string> _decoder;
 };
 

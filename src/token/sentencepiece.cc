@@ -10,10 +10,9 @@
  */
 
 #include <set>
-#include <utility>
+#include <queue>
 #include <string>
-#include <locale>
-#include <codecvt>
+#include <cfloat>
 
 #include <token/sentencepiece.h>
 #include <token/unicode.h>
@@ -21,6 +20,9 @@
 #include <utils/sys.h>
 #include <utils/json_utils.h>
 #include <utils/mariana_define.h>
+
+#include <absl/strings/strip.h>
+#include <absl/strings/str_split.h>
 
 namespace mariana {
 
@@ -88,8 +90,9 @@ bool SentencepieceTokenizer::load(const std::string& filename, const AnyMap& par
         TRY_ANY_CAST(content, token.at("content"), pass);
         int32_t id;
         TRY_ANY_CAST(id, token.at("id"), pass);
-        _pieces.insert({content, id});
+        _special_pieces.insert({content, id});
     }
+    
     AnyMap model;
     TRY_ANY_CAST(model, token_param.at("model"), pass);
     AnyMap vocabs;
@@ -99,6 +102,16 @@ bool SentencepieceTokenizer::load(const std::string& filename, const AnyMap& par
         int32_t idx;
         TRY_ANY_CAST(idx, vocab.second, pass);
         _pieces.insert({content, idx});
+    }
+    std::vector<std::string> merges;
+    TRY_ANY_CAST(merges, model.at("merges"), pass);
+    for (size_t i = 0; i < merges.size(); ++i) {
+        absl::string_view _tmp = merges[i];
+        absl::ConsumePrefix(&_tmp, " ");
+        absl::ConsumeSuffix(&_tmp, " ");
+        std::vector<std::string> right_and_left = absl::StrSplit(_tmp, ' ');
+        auto pair = std::make_pair(right_and_left[0], right_and_left[1]);
+        _bpe_ranks.insert(std::make_pair(pair, i));
     }
     
     _decoder.resize(_pieces.size());
@@ -122,31 +135,132 @@ bool SentencepieceTokenizer::load(const std::string& filename, const AnyMap& par
     return true;
 }
 
-std::vector<int> SentencepieceTokenizer::encode(const std::string& str) {
-    std::vector<std::string> tokens = unicode_regex_split(str, _regexes);
-    auto get_pairs = [=](const std::vector<std::string>& word) -> std::set<std::pair<std::string, std::string>> {
-        std::set<std::pair<std::string, std::string>> pairs;
-        std::string prev = word[0];
-        for (size_t i = 1; i < word.size(); ++i) {
-            auto pair = std::make_pair(prev, word[i]);
-            prev = word[i];
-            pairs.insert(pair);
-        }
-        return pairs;
+void SentencepieceTokenizer::encode(const std::string& str, std::vector<int>& tokens) {
+    std::vector<std::string> words = unicode_regex_split(str, _regexes);
+    struct LlmSymbol {
+        using index = int;
+        index prev;
+        index next;
+        const char* text;
+        size_t n;
     };
-    for (auto& token : tokens) {
-        size_t offset = 0;
-        std::vector<std::string> word;
-        while (offset < token.size()) {
-            auto len = unicode_len_utf8(token[offset]);
-            std::string snap = token.substr(offset, len);
-            offset += len;
-            word.push_back(snap);
+
+    struct LlmBigramBPE {
+        struct comparator {
+            bool operator()(const LlmBigramBPE & l, const LlmBigramBPE & r) const {
+                return l.rank > r.rank || (l.rank == r.rank && l.left > r.left);
+            }
+        };
+        using queue_storage = std::vector<LlmBigramBPE>;
+        using queue = std::priority_queue<LlmBigramBPE, queue_storage, comparator>;
+        LlmSymbol::index left;
+        LlmSymbol::index right;
+        std::string text;
+        int rank;
+        size_t size;
+    };
+
+    LlmBigramBPE::queue work_queue;
+    
+    auto add_new_bigram = [&](int left, int right, const std::vector<LlmSymbol>& symbols) ->void {
+        if (left == -1 || right == -1) {
+            return;
         }
-        auto pairs = get_pairs(word);
+        std::string left_token  = std::string(symbols[left].text,  symbols[left].n);
+        std::string right_token = std::string(symbols[right].text, symbols[right].n);
+
+        auto it = _bpe_ranks.find(std::make_pair(left_token, right_token));
+        if (it == _bpe_ranks.end()) {
+            return;
+        }
+        int rank_found = it->second;
+        LlmBigramBPE bigram;
+        bigram.left  = left;
+        bigram.right = right;
+        bigram.text  = left_token + right_token;
+        bigram.size  = left_token.size() + right_token.size();
+        bigram.rank  = rank_found;
+        work_queue.push(bigram);
+    };
+    int final_prev_index = -1;
+    std::vector<LlmSymbol> symbols_final;
+    std::vector<LlmSymbol> symbols;
+    for (auto& word : words) {
+        symbols.clear();
+        size_t offset = 0;
+        int index = 0;
+        std::queue<std::string> word_queue;
+        while (offset < word.size()) {
+            LlmSymbol sym;
+            size_t char_len = std::min(word.size()-offset, (size_t)unicode_len_utf8(word[offset]));
+            sym.text = word.c_str() + offset;
+            sym.n = char_len;
+            offset += sym.n;
+            sym.prev = index - 1;
+            sym.next = offset == word.size() ? -1 : index + 1;
+            index++;
+            symbols.emplace_back(sym);
+        }
         
+        for (size_t i = 1; i < symbols.size(); ++i) {
+            add_new_bigram(i - 1, i, symbols);
+        }
+
+        while (!work_queue.empty()) {
+            auto bigram = work_queue.top();
+            work_queue.pop();
+            auto & left_symbol = symbols[bigram.left];
+            auto & right_symbol = symbols[bigram.right];
+            if (left_symbol.n == 0 || right_symbol.n == 0) {
+                continue;
+            }
+            std::string left_token = std::string(left_symbol.text, left_symbol.n);
+            std::string right_token = std::string(right_symbol.text, right_symbol.n);
+            if (left_token + right_token != bigram.text) {
+                continue;  // Skip this bigram if it's outdated
+            }
+
+            // merge the right sym into the left one
+            left_symbol.n += right_symbol.n;
+            right_symbol.n = 0;
+
+            // remove the right sym from the chain
+            left_symbol.next = right_symbol.next;
+            if (right_symbol.next >= 0) {
+                symbols[right_symbol.next].prev = bigram.left;
+            }
+
+            add_new_bigram(left_symbol.prev, bigram.left, symbols); // left side of current symbol
+            add_new_bigram(bigram.left, left_symbol.next, symbols); // right side of current symbol
+        }
+
+        // add the finished tokens to the final list keeping correct order for next and prev
+        for (auto & sym : symbols) {
+            if (sym.n > 0) {
+                sym.prev = final_prev_index;
+                sym.next = -1;
+                if (final_prev_index != -1) {
+                    symbols_final[final_prev_index].next = symbols_final.size();
+                }
+                symbols_final.emplace_back(sym);
+                final_prev_index = symbols_final.size() - 1;
+            }
+        }   
     }
-    return {};
+    
+    symbols = symbols_final;
+    if (!symbols.empty()) {
+        for (int i = 0; i != -1; i = symbols[i].next) {
+            auto & symbol = symbols[i];
+            if (symbol.n == 0) {
+                continue;
+            }
+                
+            const std::string str = std::string(symbol.text, symbol.n);
+            const auto token = _pieces.at(str);
+            tokens.push_back(token);
+        }
+    }
 }
 
 std::string SentencepieceTokenizer::decode(int id) {

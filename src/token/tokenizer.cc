@@ -36,7 +36,8 @@ std::vector<int> Tokenizer::encode(const std::string& prompt) {
         for (size_t i = 0; i < prompt.length(); ++i) {
             for (auto it : _special_pieces) {
                 auto special_token = it.first;
-                if (i + special_token.length() <= prompt.length() && prompt.substr(i, special_token.length()) == special_token) {
+                if (i + special_token.length() <= prompt.length() &&
+                    prompt.substr(i, special_token.length()) == special_token) {
                     if (i > start) {
                         encode(prompt.substr(start, i-start), tokens);
                     }
@@ -47,7 +48,7 @@ std::vector<int> Tokenizer::encode(const std::string& prompt) {
                 }
             }
         }
-        if (start > prompt.length()) {
+        if (start < prompt.length()) {
             encode(prompt.substr(start), tokens);
         }
     } else {

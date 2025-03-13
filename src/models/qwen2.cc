@@ -32,10 +32,24 @@
 namespace mariana {
 
 AIResult Qwen2::compute(ExeContext& context) {
-    
+    TRACE();
+    AIResult result;
+    std::string str = R"([{"role": "system", "content": "你是一个有用的助手。"},
+                {"role": "user", "content": "给我介绍一下大型语言模型 transformers。"}
+               ])";
+    std::string prompt = m_tokenizer->apply_chat_template(str);
+    std::vector<int> tokens = m_tokenizer->encode(prompt);
+    Tensor input_ids({1, tokens.size()}, DataOn::CPU, tokens.data(), TypeMeta::make<int32_t>());
+    KeyTensorMap key_tensor_map;
+    key_tensor_map = {
+        {"model.embed_tokens", {input_ids}}
+    };
+    tensor_list otensors = m_graph->forward(key_tensor_map, context);
+    return result;
 }
 
 bool Qwen2::load_token(const char* dir_path) {
+    TRACE();
     AnyMap     token_param;
     std::string token_cfg_path = os_path_join(dir_path, "tokenizer_config.json");
     load_config(token_cfg_path.c_str(), token_param);
@@ -44,15 +58,6 @@ bool Qwen2::load_token(const char* dir_path) {
     TRY_ANY_CAST(tokenizer_class, token_param.at("tokenizer_class"), return false);
     m_tokenizer = std::make_shared<SentencepieceTokenizer>();
     bool ok = m_tokenizer->load(dir_path, token_param);
-    std::string str = R"([{"role": "system", "content": "你是一个有用的助手。"},
-                {"role": "user", "content": "给我介绍一下大型语言模型 transformers。"}
-               ])";
-    std::string prompt = m_tokenizer->apply_chat_template(str);
-    MLOG(INFO)<<prompt;
-    auto tokens = m_tokenizer->encode(prompt);
-    for (auto token : tokens) {
-        MLOG(INFO)<<token;
-    }
     return ok;
 }
 
@@ -84,7 +89,7 @@ bool Qwen2::make_graph(const char* dir_path, GptParams& gpt_params, ExeContext& 
     ok = ok &  _load_safetensors(safe_tensors.c_str(), model_param, callback);
     m_graph = std::make_shared<Graph>(gpt_params.n_threads);
     NodeSharedPtr inputs_embedding_pass = m_graph->make_root(model_param, "model.embed_tokens");
-    NodeSharedPtr inputs_embedding = m_graph->make_node(OpCategory::GetRows, model_param, {inputs_embedding_pass}, "model.text_backbone.embeddings.word_embeddings");
+    NodeSharedPtr inputs_embedding = m_graph->make_node(OpCategory::GetRows, model_param, {inputs_embedding_pass}, "model.embed_tokens");
     MLOG(INFO)<<"DDDDDDDd:"<<model_param.hidden_act;
     return ok;
 }

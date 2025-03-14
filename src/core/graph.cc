@@ -105,6 +105,8 @@ tensor_list Graph::forward(const KeyTensorMap& input_map, ExeContext& context) {
                         itensors.push_back(tensor);
                     }
                     cuda_set_device(cur_device);
+                } else {
+                    itensors.insert(itensors.end(), inode->otensors().begin(), inode->otensors().end());
                 }
             }
 #else
@@ -139,6 +141,8 @@ tensor_list Graph::forward(const KeyTensorMap& input_map, ExeContext& context) {
                         itensors.push_back(tensor);
                     }
                     cuda_set_device(cur_device);
+                }  else {
+                    itensors.insert(itensors.end(), inode->otensors().begin(), inode->otensors().end());
                 }
             }
 #else

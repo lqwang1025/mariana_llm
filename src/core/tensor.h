@@ -99,6 +99,7 @@ public:
     Tensor shallowcopy() const;
     Tensor cuda(void* extra=nullptr) const;
     Tensor cpu(void* extra=nullptr) const;
+    Tensor to_device(int32_t from, int32_t to, void* extra=nullptr) const;
 private:
     std::shared_ptr<TensorImpl> m_tensor;
 };

@@ -84,21 +84,66 @@ tensor_list Graph::forward(const KeyTensorMap& input_map, ExeContext& context) {
         m_tp->submit(std::mem_fn(&Node::forward), m_roots[i].get(), std::ref(context));
     }
     for (size_t i = 0; i < m_nodes.size(); ++i) {
+#if defined(MLM_USE_CUDA)
+        int32_t cur_node_device_id = 0;
+        if (DataOn::GPU == m_nodes[i]->backend_ctx()->device) {
+            CUDAContext* cuda_context = static_cast<CUDAContext*>(m_nodes[i]->backend_ctx()->context);
+            cur_node_device_id = cuda_context->device;
+        }
+        int32_t cur_device = cuda_get_device();
+#endif
         tensor_list itensors;
         for(auto& inode : m_nodes[i]->inodes()) {
             inode->wait_for_done();
+#if defined(MLM_USE_CUDA)
+            if (DataOn::GPU == inode->backend_ctx()->device) {
+                CUDAContext* cuda_context = static_cast<CUDAContext*>(inode->backend_ctx()->context);
+                if (cur_node_device_id != cuda_context->device) {
+                    cuda_set_device(cur_node_device_id);
+                    for (auto& otensor : inode->otensors()) {
+                        Tensor tensor = otensor.to_device(cuda_context->device, cur_node_device_id, cuda_context->stream());
+                        itensors.push_back(tensor);
+                    }
+                    cuda_set_device(cur_device);
+                }
+            }
+#else
             itensors.insert(itensors.end(), inode->otensors().begin(), inode->otensors().end());
+#endif
         }
         pb.print_bar("", static_cast<uint16_t>(std::round(_current/_total*100.f)));
         _current += 1;
         m_nodes[i]->set_inputs(itensors);
         m_tp->submit(std::mem_fn(&Node::forward), m_nodes[i].get(), std::ref(context));
+        m_nodes[i]->wait_for_done();
     }
     for (size_t i = 0; i < m_leafs.size(); ++i) {
+#if defined(MLM_USE_CUDA)
+        int32_t cur_node_device_id = 0;
+        if (DataOn::GPU == m_nodes[i]->backend_ctx()->device) {
+            CUDAContext* cuda_context = static_cast<CUDAContext*>(m_nodes[i]->backend_ctx()->context);
+            cur_node_device_id = cuda_context->device;
+        }
+        int32_t cur_device = cuda_get_device();
+#endif
         tensor_list itensors;
         for(auto& inode : m_leafs[i]->inodes()) {
             inode->wait_for_done();
+#if defined(MLM_USE_CUDA)
+            if (DataOn::GPU == inode->backend_ctx()->device) {
+                CUDAContext* cuda_context = static_cast<CUDAContext*>(inode->backend_ctx()->context);
+                if (cur_node_device_id != cuda_context->device) {
+                    cuda_set_device(cur_node_device_id);
+                    for (auto& otensor : inode->otensors()) {
+                        Tensor tensor = otensor.to_device(cuda_context->device, cur_node_device_id, cuda_context->stream());
+                        itensors.push_back(tensor);
+                    }
+                    cuda_set_device(cur_device);
+                }
+            }
+#else
             itensors.insert(itensors.end(), inode->otensors().begin(), inode->otensors().end());
+#endif
         }
         pb.print_bar("", static_cast<uint16_t>(std::round(_current/_total*100.f)));
         _current += 1;
@@ -131,12 +176,16 @@ bool Graph::gpu_distribute() {
         CUDAContext* cuda_ctx = new CUDAContext{i};
         backend_ctxes.push_back(std::make_shared<BackendContext>(DataOn::GPU, cuda_ctx));
     }
-
+    bool ok = cuda_enable_peer_access();
+    if (!ok) {
+        MLOG(ERROR)<<"cuda_enable_peer_access failed";
+    }
     for (size_t i = 0; i < m_all_nodes.size(); ++i) {
         int layer_gpu = std::upper_bound(splits.begin(), splits.end(), float(i)/float(m_all_nodes.size())) - splits.begin();
         NodeSharedPtr node = m_all_nodes[i];
         node->setup_backend(backend_ctxes[layer_gpu]);
     }
+    
     return true;
 #else
     MLOG(ERROR)<<"Mariana_llm is not compiled with cuda!";

@@ -31,6 +31,7 @@ void get_rows(SchedParam sched_param, const Tensor& indeices, const Tensor& embe
     const int32_t bs   = indeices.dim_at(0); // token_size
     const int32_t nr   = indeices.dim_at(1); // token_size
     const int32_t ne   = embedding.dim_at(1);
+    cuda_set_device(cuda_ctx->device);
     uint32_t distance = sched_param.this_thread_end_index() - sched_param.this_thread_begin_index();
     MLOG_IF(FATAL, indeices.dtype().match<int32_t>()==false)<<"Get Rows operator support data type int32 input only.";
     if (embedding.dtype().match<float>()) {

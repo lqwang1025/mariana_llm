@@ -14,6 +14,7 @@
 
 #if defined(MLM_USE_CUDA)
 #include <core/backend/gpu/cuda_allocator.h>
+#include <core/backend/gpu/helper_cuda.h>
 #endif
 
 namespace mariana {
@@ -61,6 +62,31 @@ Tensor Tensor::deepcopy(void* extra) const {
         MLOG(FATAL)<<"Uninit tensor device: "<<device_string(device());
     }
     return ret;
+}
+
+Tensor Tensor::to_device(int32_t from, int32_t to, void* extra) const {
+#if defined(MLM_USE_CUDA)
+    Tensor ret;
+    std::vector<int32_t> dims;
+    dims.resize(dim_size());
+    for (size_t i = 0; i < dim_size(); ++i) {
+        dims[i] = dim_at(i);
+    }
+    std::shared_ptr<TensorImpl> _tensor = std::make_shared<TensorImpl>(dims, DataOn::GPU);
+    IAllocator* allocator = get_allocator(DataOn::GPU);
+    _tensor->m_dtype = m_tensor->m_dtype;
+    _tensor->m_data = allocator->alloc(_tensor->m_total_size*_tensor->m_dtype.itemsize());
+    cudaStream_t stream = 0;
+    if (extra != nullptr) {
+        stream = static_cast<cudaStream_t>(extra);
+    }
+    checkCudaErrors(cudaMemcpyPeerAsync(_tensor->m_data, to, m_tensor->m_data, from, _tensor->m_total_size*_tensor->m_dtype.itemsize(), stream));
+    _tensor->m_own_data = true;
+    ret.m_tensor = _tensor;
+    return ret;
+#else
+    MLOG(FATAL)<<"Mariana_llm is not compiled with CUDA";
+#endif
 }
 
 Tensor Tensor::cuda(void* extra) const {

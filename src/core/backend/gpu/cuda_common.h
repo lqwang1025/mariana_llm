@@ -72,6 +72,10 @@ void cuda_get_device_memory(int32_t device, size_t* free, size_t* total);
 
 void cuda_set_device(int32_t device);
 
+bool cuda_enable_peer_access();
+
+void cuda_disable_peer_access();
+
 int32_t cuda_get_device();
 
 dim3 get_cuda_gridsize(size_t n, size_t cuda_blk);

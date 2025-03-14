@@ -65,6 +65,32 @@ static CUDADeviceInfo cuda_init() {
     return info;
 }
 
+bool cuda_enable_peer_access() {
+    int32_t device_count = cuda_get_device_count();
+    int32_t cur_dev = cuda_get_device();
+    bool access = true;
+    for (int32_t a = 0; a < device_count; ++a) {
+        cuda_set_device(a);
+        for (int32_t b = 0; b < device_count; ++b) {
+            if (a == b) continue;
+            int can_access_peer = 0;
+            checkCudaErrors(cudaDeviceCanAccessPeer(&can_access_peer, a, b));
+            if (can_access_peer) {
+                checkCudaErrors(cudaDeviceEnablePeerAccess(b, 0));
+            } else {
+                access = false;
+            }
+        }
+    }
+    cuda_set_device(cur_dev);
+    return access;
+}
+
+void cuda_disable_peer_access() {
+    
+}
+
+
 const CUDADeviceInfo& cuda_info() {
     static CUDADeviceInfo info = cuda_init();
     return info;

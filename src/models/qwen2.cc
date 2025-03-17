@@ -90,7 +90,28 @@ bool Qwen2::make_graph(const char* dir_path, GptParams& gpt_params, ExeContext& 
     m_graph = std::make_shared<Graph>(gpt_params.n_threads);
     NodeSharedPtr inputs_embedding_pass = m_graph->make_root(model_param, "model.embed_tokens");
     NodeSharedPtr inputs_embedding = m_graph->make_node(OpCategory::GetRows, model_param, {inputs_embedding_pass}, "model.embed_tokens");
-    MLOG(INFO)<<"DDDDDDDd:"<<model_param.hidden_act;
+    int32_t rope_theta = -1;
+    bool is_int32 = true;
+    TRY_ANY_CAST(rope_theta, qwen2_param.at("rope_theta"), is_int32=false);
+    if (is_int32 == true) {
+        model_param.rope_theta = static_cast<float>(rope_theta);
+    } else {
+        TRY_ANY_CAST(model_param.rope_theta, qwen2_param.at("rope_theta"), pass);
+    }
+    if (qwen2_param.count("rope_scaling") != 0) {
+        AnyMap rope_scaling;
+        TRY_ANY_CAST(rope_scaling, qwen2_param.at("rope_scaling"), pass);
+        if (rope_scaling.count("rope_type") == 0) {
+            TRY_ANY_CAST(model_param.rope_type, rope_scaling.at("type"), pass);
+        } else {
+            TRY_ANY_CAST(model_param.rope_type, rope_scaling.at("rope_type"), pass);
+        }
+    }
+    if (qwen2_param.count("partial_rotary_factor") != 0) {
+        TRY_ANY_CAST(model_param.partial_rotary_factor, qwen2_param.at("partial_rotary_factor"), pass);
+    }
+    NodeSharedPtr rope_node = m_graph->make_node(OpCategory::ROPE, model_param, {inputs_embedding});
+    MLOG(INFO)<<"DDDDDDDd:"<<model_param.rope_theta;
     return ok;
 }
 

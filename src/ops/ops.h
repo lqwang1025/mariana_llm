@@ -28,6 +28,7 @@ enum class OpCategory : int16_t {
     AttMask                            = 7,
     MatMul                             = 8,
     GELU                               = 9, //9-50 is activate func
+    RELU                               = 10,
     SwinLayer                          = 51,
     Pad                                = 52,
     Slice                              = 53,
@@ -40,10 +41,10 @@ enum class OpCategory : int16_t {
     GroundingDinoEncoderBefore         = 60,
     Pass                               = 61,
     Mul                                = 62,
-    RELU                               = 63,
-    GroundingDinoDecoderLayer          = 64,
-    GroundingDinoDecoderBefore         = 65,
-    GroundingDinoForDetection          = 66,
+    GroundingDinoDecoderLayer          = 63,
+    GroundingDinoDecoderBefore         = 64,
+    GroundingDinoForDetection          = 65,
+    ROPE                               = 66,
 };
 
 std::string op_to_string(const OpCategory& op_cate);

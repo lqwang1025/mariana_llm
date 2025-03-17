@@ -33,6 +33,7 @@
 #include <ops/grounding_dino_decoder_before.h>
 #include <ops/grounding_dino_for_detection.h>
 #include <ops/pass.h>
+#include <ops/rope.h>
 
 #endif /* __OPS_ALL_H__ */
 

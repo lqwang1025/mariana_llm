@@ -42,6 +42,7 @@ static void _register_ops() {
     ADD_FUNC(GroundingDinoForDetection, GroundingDinoForDetectionFunc);
     ADD_FUNC(Pass, PassFunc);
     ADD_FUNC(Mul, MulFunc);
+    ADD_FUNC(ROPE, ROPEFunc);
 }
 
 void init_ops_module() {

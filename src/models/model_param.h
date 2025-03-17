@@ -56,7 +56,10 @@ struct ModelParam {
     int32_t           num_key_value_heads     = 0;
     int32_t           intermediate_size       = 0;
     std::string       hidden_act              = "";
-    
+    // ROPE parameter
+    std::string rope_type                     = "default";
+    float rope_theta                          = 1.f;
+    float partial_rotary_factor               = 1.f;
     // swin parameter
     int32_t           window_size             = 0;
     int32_t           shift_size              = 0;

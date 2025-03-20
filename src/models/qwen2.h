@@ -25,7 +25,9 @@ public:
     virtual ~Qwen2() {}
     bool load_token(const char* dir_path);
     virtual AIResult compute(ExeContext& context)override;
-    virtual bool make_graph(const char* dir_path, GptParams& gpt_params, ExeContext& context)override;
+    virtual bool make_graph(const char* dir_path, GptParams& gpt_params, ExeContext& context) override;
+private:
+    Tensor _get_position_ids(const std::vector<int>& tokens);
 };
 
 } // namespace mariana

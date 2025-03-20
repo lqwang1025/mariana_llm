@@ -17,12 +17,16 @@
 
 namespace mariana {
 
-void ROPEFunc::_compute_default_rope_parameters(const ModelParam& model_param) {
+Tensor ROPEFunc::_compute_default_rope_parameters(const ModelParam& model_param) {
     int32_t head_dim = static_cast<int32_t>(model_param.n_embd/model_param.n_head);
+    Tensor ret({1, head_dim/2});
+    int32_t count = 0;
     for (int32_t i = 0; i < head_dim; i+=2) {
-        param.inv_freq.push_back(1.f / pow(this->param.rope_theta, ((float)i/(float)head_dim)));
+        float item = 1.f / pow(this->param.rope_theta, ((float)i/(float)head_dim));
+        ret.mutable_ptr<float>()[count++] = item;
     }
     param.attention_factor = 1.f;
+    return ret;
 }
 
 bool ROPEFunc::init(const ModelParam& model_param, const std::string& node_name) {
@@ -30,7 +34,7 @@ bool ROPEFunc::init(const ModelParam& model_param, const std::string& node_name)
     this->param.partial_rotary_factor = model_param.partial_rotary_factor;
     this->param.rope_type = model_param.rope_type;
     if (this->param.rope_type == "default") {
-        _compute_default_rope_parameters(model_param);
+        param.inv_freq = _compute_default_rope_parameters(model_param);
     } else {
         MLOG(FATAL)<<"ROPE unsupport type:"<<this->param.rope_type;
     }

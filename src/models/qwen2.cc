@@ -39,13 +39,24 @@ AIResult Qwen2::compute(ExeContext& context) {
                ])";
     std::string prompt = m_tokenizer->apply_chat_template(str);
     std::vector<int> tokens = m_tokenizer->encode(prompt);
+    Tensor position_ids = _get_position_ids(tokens);
     Tensor input_ids({1, tokens.size()}, DataOn::CPU, tokens.data(), TypeMeta::make<int32_t>());
     KeyTensorMap key_tensor_map;
     key_tensor_map = {
-        {"model.embed_tokens", {input_ids}}
+        {"model.embed_tokens", {input_ids}},
+        {"model.position_ids", {position_ids}},
     };
+    
     tensor_list otensors = m_graph->forward(key_tensor_map, context);
     return result;
+}
+
+Tensor Qwen2::_get_position_ids(const std::vector<int>& tokens) {
+    Tensor postion_ids({1, tokens.size()});
+    for (uint32_t i = 0; i < postion_ids.total_size(); ++i) {
+        postion_ids.mutable_ptr<int32_t>()[i] = static_cast<int32_t>(i);
+    }    
+    return postion_ids;
 }
 
 bool Qwen2::load_token(const char* dir_path) {
@@ -88,6 +99,7 @@ bool Qwen2::make_graph(const char* dir_path, GptParams& gpt_params, ExeContext& 
     };
     ok = ok &  _load_safetensors(safe_tensors.c_str(), model_param, callback);
     m_graph = std::make_shared<Graph>(gpt_params.n_threads);
+    NodeSharedPtr inputs_position_ids_pass = m_graph->make_root(model_param, "model.position_ids");
     NodeSharedPtr inputs_embedding_pass = m_graph->make_root(model_param, "model.embed_tokens");
     NodeSharedPtr inputs_embedding = m_graph->make_node(OpCategory::GetRows, model_param, {inputs_embedding_pass}, "model.embed_tokens");
     int32_t rope_theta = -1;
@@ -110,7 +122,7 @@ bool Qwen2::make_graph(const char* dir_path, GptParams& gpt_params, ExeContext& 
     if (qwen2_param.count("partial_rotary_factor") != 0) {
         TRY_ANY_CAST(model_param.partial_rotary_factor, qwen2_param.at("partial_rotary_factor"), pass);
     }
-    NodeSharedPtr rope_node = m_graph->make_node(OpCategory::ROPE, model_param, {inputs_embedding});
+    NodeSharedPtr rope_node = m_graph->make_node(OpCategory::ROPE, model_param, {inputs_position_ids_pass});
     MLOG(INFO)<<"DDDDDDDd:"<<model_param.rope_theta;
     return ok;
 }

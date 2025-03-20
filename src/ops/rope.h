@@ -21,8 +21,8 @@ struct ROPEParam {
     float              rope_theta            = 1.f;
     float              partial_rotary_factor = 1.f;
     std::string        rope_type             = "";
-    std::vector<float> inv_freq              = {};
     float              attention_factor      = 1.f;
+    Tensor inv_freq;
 };
 
 struct ROPEFunc : public Function {
@@ -30,7 +30,7 @@ struct ROPEFunc : public Function {
     bool plan_forward_cpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
     ROPEParam param;
 private:
-    void _compute_default_rope_parameters(const ModelParam& param);
+    Tensor _compute_default_rope_parameters(const ModelParam& param);
 protected:
     bool _forward(const tensor_list& inputs, tensor_list& outputs, ExeContext& context)override;
 #if defined(MLM_USE_CUDA)

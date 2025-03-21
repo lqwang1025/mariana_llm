@@ -46,6 +46,7 @@ std::string op_to_string(const OpCategory& op_cate) {
         CASE_ITEM(Mul);
         CASE_ITEM(RELU);
         CASE_ITEM(ROPE);
+        CASE_ITEM(RMSNorm);
     default:
         return "uninit";
     }

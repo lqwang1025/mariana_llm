@@ -45,6 +45,7 @@ enum class OpCategory : int16_t {
     GroundingDinoDecoderBefore         = 64,
     GroundingDinoForDetection          = 65,
     ROPE                               = 66,
+    RMSNorm                            = 67,
 };
 
 std::string op_to_string(const OpCategory& op_cate);

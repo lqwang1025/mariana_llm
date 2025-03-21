@@ -26,6 +26,8 @@ void group_normlization(SchedParam sched_param, const Tensor& input, const Tenso
 
 void layer_normlization(SchedParam sched_param, const Tensor& input, const Tensor& weight, const Tensor& bias, const NormParam& norm_param, Tensor& out, CUDAContext* cuda_ctx);
 
+void RMS_normlization(SchedParam sched_param, const Tensor& input, const Tensor& weight, float epsilon, Tensor& out, CUDAContext* cuda_ctx);
+
 } // namespace mariana
 
 #endif /* __OPS_BACKEND_GPU_IMPL_LAYER_NORM_H__ */

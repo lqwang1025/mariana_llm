@@ -13,7 +13,7 @@
 
 namespace mariana {
 
-__global__ void __rope_fp32_kernel(const int32_t* pos_ids, const float* inv_freq, float* sin, float* cos, int32_t odim0, int32_t odim1, int32_t odim2) {
+__global__ void __rope_fp32_kernel(const int32_t* pos_ids, const float* inv_freq, float* sin, float* cos, float attn_scaling, int32_t odim0, int32_t odim1, int32_t odim2) {
     int32_t index = (blockIdx.x + blockIdx.y * gridDim.x) * blockDim.x + threadIdx.x;
     if (index >= odim0*odim1*odim2) return;
     int32_t idx = index;
@@ -25,8 +25,8 @@ __global__ void __rope_fp32_kernel(const int32_t* pos_ids, const float* inv_freq
     int32_t offset = idx2 % (odim2/2);
     float freq = static_cast<float>(pos_ids[idx1]) * inv_freq[offset];
     int32_t oindex = idx0*odim1*odim2 + idx1*odim2 + idx2;
-    sin[oindex] = sinf(freq);
-    cos[oindex] = cosf(freq);
+    sin[oindex] = sinf(freq) * attn_scaling;
+    cos[oindex] = cosf(freq) * attn_scaling;
 }
 
 void rope(SchedParam sched_param, const Tensor& input, Tensor& sin, Tensor& cos, const ROPEParam& param, CUDAContext* cuda_ctx) {
@@ -44,7 +44,7 @@ void rope(SchedParam sched_param, const Tensor& input, Tensor& sin, Tensor& cos,
         const int32_t dim2 = sin.dim_at(2);
         __rope_fp32_kernel<<<get_cuda_gridsize(distance*sin_stride_0, CUDA_ROPE_BLOCK_SIZE), CUDA_ROPE_BLOCK_SIZE,
             0, cuda_ctx->stream(sched_param.id_thread)>>>
-            (pos_ids_ptr, inv_freq_ptr, sin_ptr, cos_ptr, distance, dim1, dim2);
+            (pos_ids_ptr, inv_freq_ptr, sin_ptr, cos_ptr, param.attention_factor, distance, dim1, dim2);
         cuda_ctx->stream_sync(cuda_ctx->stream(sched_param.id_thread));
     } else {
         MLOG(FATAL)<<"rope unsupport datatype:"<<sin.dtype().name();

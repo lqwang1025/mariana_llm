@@ -88,8 +88,8 @@ public:
         MCHECK_LT(idx, dim_size());
         return m_strides[idx];
     }
-    int32_t dim_size() const {
-        return m_dim_size;
+    size_t dim_size() const {
+        return static_cast<size_t>(m_dim_size);
     }
     std::vector<int32_t> dims() const {
         std::vector<int32_t> dims;

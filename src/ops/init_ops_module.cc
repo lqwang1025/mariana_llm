@@ -43,6 +43,7 @@ static void _register_ops() {
     ADD_FUNC(Pass, PassFunc);
     ADD_FUNC(Mul, MulFunc);
     ADD_FUNC(ROPE, ROPEFunc);
+    ADD_FUNC(RMSNorm, RMSNormFunc);
 }
 
 void init_ops_module() {

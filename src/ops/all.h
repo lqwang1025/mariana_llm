@@ -34,6 +34,6 @@
 #include <ops/grounding_dino_for_detection.h>
 #include <ops/pass.h>
 #include <ops/rope.h>
-
+#include <ops/rms_norm.h>
 #endif /* __OPS_ALL_H__ */
 

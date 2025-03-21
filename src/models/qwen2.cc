@@ -40,7 +40,7 @@ AIResult Qwen2::compute(ExeContext& context) {
     std::string prompt = m_tokenizer->apply_chat_template(str);
     std::vector<int> tokens = m_tokenizer->encode(prompt);
     Tensor position_ids = _get_position_ids(tokens);
-    Tensor input_ids({1, tokens.size()}, DataOn::CPU, tokens.data(), TypeMeta::make<int32_t>());
+    Tensor input_ids({1, static_cast<int32_t>(tokens.size())}, DataOn::CPU, tokens.data(), TypeMeta::make<int32_t>());
     KeyTensorMap key_tensor_map;
     key_tensor_map = {
         {"model.embed_tokens", {input_ids}},
@@ -52,7 +52,7 @@ AIResult Qwen2::compute(ExeContext& context) {
 }
 
 Tensor Qwen2::_get_position_ids(const std::vector<int>& tokens) {
-    Tensor postion_ids({1, tokens.size()});
+    Tensor postion_ids({1, static_cast<int32_t>(tokens.size())});
     for (uint32_t i = 0; i < postion_ids.total_size(); ++i) {
         postion_ids.mutable_ptr<int32_t>()[i] = static_cast<int32_t>(i);
     }    
@@ -123,7 +123,11 @@ bool Qwen2::make_graph(const char* dir_path, GptParams& gpt_params, ExeContext& 
         TRY_ANY_CAST(model_param.partial_rotary_factor, qwen2_param.at("partial_rotary_factor"), pass);
     }
     NodeSharedPtr rope_node = m_graph->make_node(OpCategory::ROPE, model_param, {inputs_position_ids_pass});
-    MLOG(INFO)<<"DDDDDDDd:"<<model_param.rope_theta;
+    for (int32_t dcl_idx = 0; dcl_idx < 1// model_param.n_layer
+             ; ++dcl_idx) {
+        std::string name = absl::StrFormat("model.layers.%d.input_layernorm", dcl_idx);
+        NodeSharedPtr ln_node = m_graph->make_node(OpCategory::RMSNorm, model_param, {inputs_embedding}, name);
+    }
     return ok;
 }
 

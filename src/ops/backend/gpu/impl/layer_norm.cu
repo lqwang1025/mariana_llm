@@ -103,4 +103,37 @@ void group_normlization(SchedParam sched_param, const Tensor& input, const Tenso
     }
 }
 
+__global__ void __RMS_normlization_fp32_kernel(const float* input_ptr, const float* weight, float* out, float epsilon, int32_t distance, int32_t c, int32_t l) {
+    int32_t index = (blockIdx.x + blockIdx.y * gridDim.x) * blockDim.x + threadIdx.x;
+    if (index >= c*distance) return;
+    float var = 0;
+    int32_t offset = index*l;
+    for (int32_t col = 0; col < l; ++col) {
+        var += powf(input_ptr[offset+col], 2.f);
+    }
+    var /= l;
+    var = rsqrtf(var+epsilon);
+    for (int32_t col = 0; col < l; ++col) {
+        float val = var*input_ptr[offset+col]*weight[col];
+        out[offset+col] = val;
+    }
+}
+
+void RMS_normlization(SchedParam sched_param, const Tensor& input, const Tensor& weight, float epsilon, Tensor& out, CUDAContext* cuda_ctx) {
+    cuda_set_device(cuda_ctx->device);
+    if (out.dtype().match<float>()) {        
+        const int32_t c = input.dim_at(1);
+        const int32_t l = input.dim_at(2);
+        uint32_t distance = sched_param.this_thread_end_index() - sched_param.this_thread_begin_index();
+        float* input_ptr  = input.unsafe_ptr<float>(sched_param.this_thread_begin_index()*c*l);
+        float* weight_ptr = weight.unsafe_ptr<float>(0);
+        float* dst_ptr    = out.unsafe_ptr<float>(sched_param.this_thread_begin_index()*c*l);
+        __RMS_normlization_fp32_kernel<<<get_cuda_gridsize(distance*c, CUDA_LN_BLOCK_SIZE),
+            CUDA_LN_BLOCK_SIZE, 0, cuda_ctx->stream(sched_param.id_thread)>>>(input_ptr, weight_ptr, dst_ptr, epsilon, distance, c, l);
+        cuda_ctx->stream_sync(cuda_ctx->stream(sched_param.id_thread));
+    }  else {
+        MLOG(FATAL)<<"RMS_normlization unsupport datatype:"<<out.dtype().name();
+    }
+}
+
 } // namespace mariana

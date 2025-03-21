@@ -38,7 +38,7 @@ bool ROPEFunc::plan_forward_gpu(const tensor_list& inputs, tensor_list& outputs,
 
 bool ROPEFunc::_forward_gpu(const tensor_list& inputs, tensor_list& outputs, ExeContext& context) {
     CUDAContext* cuda_ctx = static_cast<CUDAContext*>(m_owner->backend_ctx()->context);
-    _parallel_sync(m_tp, 1, rope, std::ref(inputs[0]), std::ref(outputs[0]), std::ref(outputs[1]), param, cuda_ctx);
+    _parallel_sync(m_tp, inputs[0].dim_at(0), rope, std::ref(inputs[0]), std::ref(outputs[0]), std::ref(outputs[1]), param, cuda_ctx);
     return true;
 }
 

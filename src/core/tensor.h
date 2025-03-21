@@ -70,7 +70,7 @@ public:
     int32_t stride_at(size_t idx) const {
         return m_tensor->stride_at(idx);
     }
-    uint8_t dim_size() const {
+    int32_t dim_size() const {
         return m_tensor->dim_size();
     }
     uint32_t total_size() const {

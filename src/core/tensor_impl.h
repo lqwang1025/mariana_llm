@@ -88,7 +88,7 @@ public:
         MCHECK_LT(idx, dim_size());
         return m_strides[idx];
     }
-    uint8_t dim_size() const {
+    int32_t dim_size() const {
         return m_dim_size;
     }
     std::vector<int32_t> dims() const {
@@ -133,7 +133,7 @@ private:
 private:
     int32_t     m_dims[MAX_DIM_SIZE]    = {-1, -1, -1, -1, -1, -1};
     int32_t     m_strides[MAX_DIM_SIZE] = {-1, -1, -1, -1, -1, -1};
-    uint8_t     m_dim_size              = 0;
+    int32_t     m_dim_size              = 0;
     uint32_t    m_total_size            = 0;
     bool        m_own_data              = false;
     void*       m_data                  = nullptr;    

@@ -180,6 +180,7 @@ bool Qwen2::make_graph(const char* dir_path, GptParams& gpt_params, ExeContext& 
         NodeSharedPtr down_proj = m_graph->make_node(OpCategory::MatMul, model_param, {mul_node}, name);
         residual = m_graph->make_node(OpCategory::Add, model_param, {add_node, down_proj});
     }
+    model_param.release();
     return ok;
 }
 

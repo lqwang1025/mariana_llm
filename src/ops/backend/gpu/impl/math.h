@@ -22,6 +22,8 @@ namespace mariana {
  
 void add_ele(SchedParam sched_param, const Tensor& a, const Tensor& b, Tensor& out, CUDAContext* cuda_ctx);
 
+void mul_ele(SchedParam sched_param, const Tensor& a, const Tensor& b, Tensor& out, CUDAContext* cuda_ctx);
+
 } // namespace mariana
 
 #endif /* __OPS_BACKEND_GPU_IMPL_MATH_H__ */

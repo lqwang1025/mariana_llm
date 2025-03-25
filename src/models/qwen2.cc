@@ -152,12 +152,33 @@ bool Qwen2::make_graph(const char* dir_path, GptParams& gpt_params, ExeContext& 
     model_param.k_weight_prefix = "k_proj";
     model_param.v_weight_prefix = "v_proj";
     model_param.o_weight_prefix = "o_proj";
-    for (int32_t dcl_idx = 0; dcl_idx < 1// model_param.n_layer
-             ; ++dcl_idx) {
+    NodeSharedPtr residual = inputs_embedding;
+    for (int32_t dcl_idx = 0; dcl_idx < model_param.n_layer; ++dcl_idx) {
+        // 1. Attention
         std::string name = absl::StrFormat("model.layers.%d.input_layernorm", dcl_idx);
-        NodeSharedPtr ln_node = m_graph->make_node(OpCategory::RMSNorm, model_param, {inputs_embedding}, name);
+        NodeSharedPtr input_ln_node = m_graph->make_node(OpCategory::RMSNorm, model_param, {residual}, name);
         name = absl::StrFormat("model.layers.%d.self_attn", dcl_idx);
-        NodeSharedPtr at_node = m_graph->make_node(OpCategory::SelfAtt, model_param, {ln_node, rope_node, att_mask}, name);
+        NodeSharedPtr attn_node = m_graph->make_node(OpCategory::SelfAtt, model_param, {input_ln_node, rope_node, att_mask}, name);
+        NodeSharedPtr add_node = m_graph->make_node(OpCategory::Add, model_param, {residual, attn_node});
+        name = absl::StrFormat("model.layers.%d.post_attention_layernorm", dcl_idx);
+        NodeSharedPtr post_ln_node = m_graph->make_node(OpCategory::RMSNorm, model_param, {add_node}, name);
+        // 2. MLP
+        name = absl::StrFormat("model.layers.%d.mlp.gate_proj", dcl_idx);
+        std::string hidden_act;
+        TRY_ANY_CAST(hidden_act, qwen2_param.at("hidden_act"), pass);
+        if (hidden_act == "silu") {
+            model_param.act_cate = OpCategory::SiLU;
+        } else {
+            MLOG(FATAL)<<"Unknown hidden_act";   
+        }
+        NodeSharedPtr gate_proj = m_graph->make_node(OpCategory::MatMul, model_param, {post_ln_node}, name);
+        model_param.act_cate = OpCategory::None;
+        name = absl::StrFormat("model.layers.%d.mlp.up_proj", dcl_idx);
+        NodeSharedPtr up_proj = m_graph->make_node(OpCategory::MatMul, model_param, {post_ln_node}, name);
+        NodeSharedPtr mul_node = m_graph->make_node(OpCategory::Mul, model_param, {gate_proj, up_proj});
+        name = absl::StrFormat("model.layers.%d.mlp.down_proj", dcl_idx);
+        NodeSharedPtr down_proj = m_graph->make_node(OpCategory::MatMul, model_param, {mul_node}, name);
+        residual = m_graph->make_node(OpCategory::Add, model_param, {add_node, down_proj});
     }
     return ok;
 }

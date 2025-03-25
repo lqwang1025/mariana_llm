@@ -21,6 +21,10 @@ __device__ float __mm_relu_single_kernel(float x) {
     return MAX(x, 0.f);
 }
 
+__device__ float __mm_silu_single_kernel(float x) {
+    return x/(1+expf(-x));
+}
+
 template<typename T>
 __global__ void __matmul_kernel(const T* input, const T* weight, const T* bias, T* out, uint32_t distance, uint32_t oh, uint32_t ow, uint32_t k, uint32_t bias_size, T alpha, T beta, OpCategory act_cate) {
     int32_t index = (blockIdx.x + blockIdx.y * gridDim.x) * blockDim.x + threadIdx.x;
@@ -45,6 +49,8 @@ __global__ void __matmul_kernel(const T* input, const T* weight, const T* bias, 
         out[index] = __mm_gelu_single_kernel(alpha*sum+beta*_bias);
     } else if (act_cate == OpCategory::RELU) {
         out[index] = __mm_relu_single_kernel(alpha*sum+beta*_bias);
+    } else if (act_cate == OpCategory::SiLU) {
+        out[index] = __mm_silu_single_kernel(alpha*sum+beta*_bias);
     } else {
         out[index] = alpha*sum+beta*_bias;
     }
@@ -98,6 +104,8 @@ __global__ void __batch_matmul_kernel(const T* input, const T* weight, const T* 
         out[index] = __mm_gelu_single_kernel(alpha*sum+beta*_bias);
     } else if (act_cate == OpCategory::RELU) {
         out[index] = __mm_relu_single_kernel(alpha*sum+beta*_bias);
+    } else if (act_cate == OpCategory::SiLU) {
+        out[index] = __mm_silu_single_kernel(alpha*sum+beta*_bias);
     } else {
         out[index] = alpha*sum+beta*_bias;
     }

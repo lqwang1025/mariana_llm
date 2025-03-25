@@ -28,7 +28,8 @@ enum class OpCategory : int16_t {
     AttMask                            = 7,
     MatMul                             = 8,
     GELU                               = 9, //9-50 is activate func
-    RELU                               = 10,
+    SiLU                               = 10,
+    RELU                               = 11,
     SwinLayer                          = 51,
     Pad                                = 52,
     Slice                              = 53,

@@ -88,11 +88,13 @@ bool SelfAttentionFunc::_forward_gpu(const tensor_list& inputs, tensor_list& out
     // inputs squence is : hidden_states, sin, cos
     Tensor hidden_states = inputs[0];
     CUDAContext* cuda_ctx = static_cast<CUDAContext*>(m_owner->backend_ctx()->context);
+    // 1. q k v projector
     _parallel_async(m_tp, hidden_states.dim_at(0), matmul, std::ref(hidden_states), std::ref(m_q_weight), std::ref(m_q_bias), std::ref(m_q_o), 1.f, 1.f, OpCategory::None, cuda_ctx);
     _parallel_async(m_tp, hidden_states.dim_at(0), matmul, std::ref(hidden_states), std::ref(m_k_weight), std::ref(m_k_bias), std::ref(m_k_o), 1.f, 1.f, OpCategory::None, cuda_ctx);
     _parallel_async(m_tp, hidden_states.dim_at(0), matmul, std::ref(hidden_states), std::ref(m_v_weight), std::ref(m_v_bias), std::ref(m_v_o), 1.f, 1.f, OpCategory::None, cuda_ctx);
     m_tp->wait_work_complete();
-    
+
+    // 2. q k v transpose
     m_q_o.reshape({hidden_states.dim_at(0), hidden_states.dim_at(1),
             m_q_o.dim_at(2)/m_attention_head_size, m_attention_head_size});
     uint8_t perms[4] = {0, 2, 1, 3};
@@ -104,7 +106,8 @@ bool SelfAttentionFunc::_forward_gpu(const tensor_list& inputs, tensor_list& out
             m_v_o.dim_at(2)/m_attention_head_size, m_attention_head_size});
     _parallel_async(m_tp, 1, permute4, std::ref(m_v_o), std::ref(m_vtrans_o), perms, cuda_ctx);
     m_tp->wait_work_complete();
-    
+
+    // 3. q k pos embedding
     Tensor sin = inputs[1];
     Tensor cos = inputs[2];
     m_q_o.reshape(m_qtrans_o.dims());
@@ -113,7 +116,7 @@ bool SelfAttentionFunc::_forward_gpu(const tensor_list& inputs, tensor_list& out
     _parallel_async(m_tp, m_ktrans_o.dim_at(0), apply_rotary_pos_emb, std::ref(m_ktrans_o), std::ref(sin), std::ref(cos), std::ref(m_k_o), cuda_ctx);
     m_tp->wait_work_complete();
 
-// repeat key value
+    // 4. repeat key value
     uint32_t num_key_value_groups = m_qtrans_o.dim_at(1)/m_vtrans_o.dim_at(1);
     m_k_o.reshape({m_k_o.dim_at(0)*m_k_o.dim_at(1), 1, m_k_o.dim_at(2), m_k_o.dim_at(3)});
     m_qtrans_o.try_realloc({m_k_o.dim_at(0), (int32_t)num_key_value_groups, m_k_o.dim_at(2), m_k_o.dim_at(3)}, m_qtrans_o.dtype());
@@ -123,8 +126,9 @@ bool SelfAttentionFunc::_forward_gpu(const tensor_list& inputs, tensor_list& out
     m_vtrans_o.reshape({m_vtrans_o.dim_at(0)*m_vtrans_o.dim_at(1), 1, m_vtrans_o.dim_at(2), m_vtrans_o.dim_at(3)});
     m_ktrans_o.try_realloc({m_vtrans_o.dim_at(0), (int32_t)num_key_value_groups, m_vtrans_o.dim_at(2), m_vtrans_o.dim_at(3)}, m_vtrans_o.dtype());
     _parallel_async(m_tp, 1, tile4, std::ref(m_vtrans_o), std::ref(m_ktrans_o), repeats, cuda_ctx);
-
     m_tp->wait_work_complete();
+
+    // 5. q @ k
     Tensor query = m_q_o;
     m_qtrans_o.reshape(m_q_o.dims());
     Tensor key = m_qtrans_o;
@@ -139,15 +143,18 @@ bool SelfAttentionFunc::_forward_gpu(const tensor_list& inputs, tensor_list& out
     float scale = 1/sqrt(query.dim_at(2));
     _parallel_sync(m_tp, query.dim_at(0), batch_matmul, std::ref(query), std::ref(key), std::ref(place_holder), std::ref(attn_weights), scale, 1.f, OpCategory::None, cuda_ctx);
 
+    // 6. atten_weights apply mask
     Tensor att_mask = inputs[3];
     _parallel_sync(m_tp, attn_weights.total_size(), add_ele, std::ref(attn_weights), std::ref(att_mask), std::ref(attn_weights), cuda_ctx);
-    
+
+    // 7. atten_weights apply softmax
     Tensor softmaxed = m_q_o;
     softmaxed.try_realloc(attn_weights.dims(), attn_weights.dtype());
     _parallel_sync(m_tp, attn_weights.dim_at(0), softmax3, std::ref(attn_weights), std::ref(softmaxed), -1/*dim*/, cuda_ctx);
     
     attn_weights.try_realloc({value.dim_at(0)*value.dim_at(1), softmaxed.dim_at(2), value.dim_at(3)}, attn_weights.dtype());
-    
+
+    // 7. atten_weights @ value
     perms[1] = 1;
     perms[2] = 3;
     perms[3] = 2;
@@ -156,15 +163,16 @@ bool SelfAttentionFunc::_forward_gpu(const tensor_list& inputs, tensor_list& out
     value = m_vtrans_o;
     value.reshape({value.dim_at(0)*value.dim_at(1), value.dim_at(2), value.dim_at(3)});
     _parallel_sync(m_tp, softmaxed.dim_at(0), batch_matmul, std::ref(softmaxed), std::ref(value), std::ref(place_holder), std::ref(attn_weights), 1.f, 1.f, OpCategory::None, cuda_ctx);
-    
-    DUMP_TENSOR_TO_BIN(attn_weights.cpu(), "attn_weights");
-    DUMP_TENSOR_TO_TXT(attn_weights.cpu(), "attn_weights");
-    DUMP_TENSOR_TO_BIN(softmaxed.cpu(), "softmaxed");
-    DUMP_TENSOR_TO_TXT(softmaxed.cpu(), "softmaxed");
-    DUMP_TENSOR_TO_BIN(value.cpu(), "value");
-    DUMP_TENSOR_TO_TXT(value.cpu(), "value");
 
-    MLOG(INFO)<<inputs.size();
+    // 8. output projector
+    perms[1] = 2;
+    perms[2] = 1;
+    perms[3] = 3;
+    attn_weights.reshape({hidden_states.dim_at(0), attn_weights.dim_at(0)/hidden_states.dim_at(0), attn_weights.dim_at(1), attn_weights.dim_at(2)});
+    softmaxed.try_realloc({attn_weights.dim_at(0), attn_weights.dim_at(2), attn_weights.dim_at(1), attn_weights.dim_at(3)}, attn_weights.dtype());
+    _parallel_sync(m_tp, 1, permute4, std::ref(attn_weights), std::ref(softmaxed), perms, cuda_ctx);
+    softmaxed.reshape({softmaxed.dim_at(0), softmaxed.dim_at(1), softmaxed.dim_at(2)*softmaxed.dim_at(3)});
+    _parallel_sync(m_tp, softmaxed.dim_at(0), matmul, std::ref(softmaxed), std::ref(m_o_weight), std::ref(m_o_bias), std::ref(outputs[0]), 1.f, 1.f, OpCategory::None, cuda_ctx);
     return true;
 }
     

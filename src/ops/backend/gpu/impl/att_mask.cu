@@ -25,6 +25,7 @@ __global__ void __att_mask_cast_to_kernel(const uint8_t* input, T* dst, uint32_t
     
 void att_mask_cast_to(SchedParam sched_param, const Tensor& input, Tensor& out, CUDAContext* cuda_ctx) {
     MLOG_IF(FATAL, input.dtype().match<uint8_t>()==false)<<"att_mask operator support data type uint8 input only.";
+    cuda_set_device(cuda_ctx->device);
     uint32_t distance = sched_param.this_thread_end_index() - sched_param.this_thread_begin_index();
     if (out.dtype().match<float>()) {
         uint8_t* input_ptr  = input.unsafe_ptr<uint8_t>(sched_param.this_thread_begin_index());

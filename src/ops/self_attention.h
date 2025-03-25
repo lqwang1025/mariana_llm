@@ -40,10 +40,15 @@ protected:
     Tensor m_k_bias;
     Tensor m_v_weight;
     Tensor m_v_bias;
+    Tensor m_o_weight;
+    Tensor m_o_bias;
     
     Tensor m_q_o;
     Tensor m_k_o;
     Tensor m_v_o;
+    Tensor m_qtrans_o;
+    Tensor m_ktrans_o;
+    Tensor m_vtrans_o;
 };
 
 } // namespace mariana

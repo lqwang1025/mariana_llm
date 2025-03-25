@@ -41,10 +41,12 @@ AIResult Qwen2::compute(ExeContext& context) {
     std::vector<int> tokens = m_tokenizer->encode(prompt);
     Tensor position_ids = _get_position_ids(tokens);
     Tensor input_ids({1, static_cast<int32_t>(tokens.size())}, DataOn::CPU, tokens.data(), TypeMeta::make<int32_t>());
+    Tensor attn_mask = _get_attn_mask(tokens);
     KeyTensorMap key_tensor_map;
     key_tensor_map = {
         {"model.embed_tokens", {input_ids}},
         {"model.position_ids", {position_ids}},
+        {"model.attn_mask", {attn_mask}},
     };
     
     tensor_list otensors = m_graph->forward(key_tensor_map, context);
@@ -57,6 +59,26 @@ Tensor Qwen2::_get_position_ids(const std::vector<int>& tokens) {
         postion_ids.mutable_ptr<int32_t>()[i] = static_cast<int32_t>(i);
     }    
     return postion_ids;
+}
+
+Tensor Qwen2::_get_attn_mask(const std::vector<int>& tokens) {
+    Tensor attn_mask({1, _num_atten_heads, static_cast<int32_t>(tokens.size()), static_cast<int32_t>(tokens.size())});
+    for (int n = 0; n < attn_mask.dim_at(0); ++n) {
+        for (int ah = 0; ah < attn_mask.dim_at(1); ++ah) {
+            for (int h = 0; h < attn_mask.dim_at(2); ++h) {
+                for (int w = 0; w < attn_mask.dim_at(3); ++w) {
+                    int32_t idx = n*attn_mask.stride_at(0)+ah*attn_mask.stride_at(1)
+                                  + h*attn_mask.stride_at(2) + w*attn_mask.stride_at(3);
+                    if (h < w) {
+                        attn_mask.mutable_ptr<uint8_t>()[idx] = 0;
+                    } else {
+                        attn_mask.mutable_ptr<uint8_t>()[idx] = 1;
+                    }
+                }
+            }
+        }
+    }
+    return attn_mask;
 }
 
 bool Qwen2::load_token(const char* dir_path) {
@@ -82,6 +104,7 @@ bool Qwen2::make_graph(const char* dir_path, GptParams& gpt_params, ExeContext& 
     TRY_ANY_CAST(model_param.n_vocab, qwen2_param.at("vocab_size"), return false);
     TRY_ANY_CAST(model_param.n_layer, qwen2_param.at("num_hidden_layers"), return false);
     TRY_ANY_CAST(model_param.n_head, qwen2_param.at("num_attention_heads"), return false);
+    _num_atten_heads = model_param.n_head;
     TRY_ANY_CAST(model_param.n_embd, qwen2_param.at("hidden_size"), return false);
     TRY_ANY_CAST(model_param.max_position_embeddings, qwen2_param.at("max_position_embeddings"), return false);
     TRY_ANY_CAST(model_param.tie_word_embeddings, qwen2_param.at("tie_word_embeddings"), return false);
@@ -101,6 +124,8 @@ bool Qwen2::make_graph(const char* dir_path, GptParams& gpt_params, ExeContext& 
     m_graph = std::make_shared<Graph>(gpt_params.n_threads);
     NodeSharedPtr inputs_position_ids_pass = m_graph->make_root(model_param, "model.position_ids");
     NodeSharedPtr inputs_embedding_pass = m_graph->make_root(model_param, "model.embed_tokens");
+    NodeSharedPtr att_mask_pass = m_graph->make_root(model_param, "model.attn_mask");
+    NodeSharedPtr att_mask = m_graph->make_node(OpCategory::AttMask, model_param, {att_mask_pass}, "model.attn_mask");
     NodeSharedPtr inputs_embedding = m_graph->make_node(OpCategory::GetRows, model_param, {inputs_embedding_pass}, "model.embed_tokens");
     int32_t rope_theta = -1;
     bool is_int32 = true;
@@ -123,10 +148,16 @@ bool Qwen2::make_graph(const char* dir_path, GptParams& gpt_params, ExeContext& 
         TRY_ANY_CAST(model_param.partial_rotary_factor, qwen2_param.at("partial_rotary_factor"), pass);
     }
     NodeSharedPtr rope_node = m_graph->make_node(OpCategory::ROPE, model_param, {inputs_position_ids_pass});
+    model_param.q_weight_prefix = "q_proj";
+    model_param.k_weight_prefix = "k_proj";
+    model_param.v_weight_prefix = "v_proj";
+    model_param.o_weight_prefix = "o_proj";
     for (int32_t dcl_idx = 0; dcl_idx < 1// model_param.n_layer
              ; ++dcl_idx) {
         std::string name = absl::StrFormat("model.layers.%d.input_layernorm", dcl_idx);
         NodeSharedPtr ln_node = m_graph->make_node(OpCategory::RMSNorm, model_param, {inputs_embedding}, name);
+        name = absl::StrFormat("model.layers.%d.self_attn", dcl_idx);
+        NodeSharedPtr at_node = m_graph->make_node(OpCategory::SelfAtt, model_param, {ln_node, rope_node, att_mask}, name);
     }
     return ok;
 }

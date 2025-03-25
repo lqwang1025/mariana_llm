@@ -34,6 +34,7 @@ __global__ void __permute4_kernel(const T* input, T* out, int32_t idim0, int32_t
 }
 
 void permute4(SchedParam sched_param, const Tensor& input, Tensor& out, uint8_t perms[4], CUDAContext* cuda_ctx) {
+    cuda_set_device(cuda_ctx->device);
     if (out.dtype().match<float>()) {
         uint32_t istride_0 = input.stride_at(0);
         uint32_t istride_1 = input.stride_at(1);
@@ -83,6 +84,7 @@ __global__ void __permute6_kernel(const T* input, T* out, int32_t idim0, int32_t
 }
 
 void permute6(SchedParam sched_param, const Tensor& input, Tensor& out, uint8_t perms[6], CUDAContext* cuda_ctx) {
+    cuda_set_device(cuda_ctx->device);
     if (out.dtype().match<float>()) {
         uint32_t istride_0 = input.stride_at(0);
         uint32_t istride_1 = input.stride_at(1);

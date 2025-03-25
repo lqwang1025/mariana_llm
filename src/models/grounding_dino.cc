@@ -259,15 +259,15 @@ bool GroundingDINO::make_graph(const char* dir_path, GptParams& gpt_params, ExeC
     TRY_ANY_CAST(bert_model_param.n_layer, bert_param.at("num_hidden_layers"), return false);
     TRY_ANY_CAST(bert_model_param.n_head, bert_param.at("num_attention_heads"), return false);
     next = m_graph->make_node(OpCategory::LayerNorm, bert_model_param, {next}, "model.text_backbone.embeddings.LayerNorm");
-    
+    bert_model_param.q_weight_prefix = "self.query";
+    bert_model_param.k_weight_prefix = "self.key";
+    bert_model_param.v_weight_prefix = "self.value";
+    bert_model_param.o_weight_prefix = "output.dense";
     // 1. text_backbone bert
     for (int32_t i = 0; i < bert_model_param.n_layer; ++i) {
         NodeSharedPtr route = next;
-        std::string name = absl::StrFormat("model.text_backbone.encoder.layer.%d.attention.self", i);    
+        std::string name = absl::StrFormat("model.text_backbone.encoder.layer.%d.attention", i);
         next = m_graph->make_node(OpCategory::SelfAtt, bert_model_param, {next, att_mask}, name);
-        
-        name = absl::StrFormat("model.text_backbone.encoder.layer.%d.attention.output.dense", i);
-        next = m_graph->make_node(OpCategory::MatMul, bert_model_param, {next}, name);
         next = m_graph->make_node(OpCategory::Add, bert_model_param, {next, route});
         
         name = absl::StrFormat("model.text_backbone.encoder.layer.%d.attention.output.LayerNorm", i);

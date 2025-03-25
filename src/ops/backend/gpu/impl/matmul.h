@@ -24,6 +24,8 @@ namespace mariana {
 // c = alpha*A*B+ beta*bias
 void matmul(SchedParam sched_param, const Tensor& input, const Tensor& weight, const Tensor& bias, Tensor& out, float alpha, float beta, OpCategory act_cate, CUDAContext* cuda_ctx);
 
+void batch_matmul(SchedParam sched_param, const Tensor& input, const Tensor& weight, const Tensor& bias, Tensor& out, float alpha, float beta, OpCategory act_cate, CUDAContext* cuda_ctx);
+
 } // namespace mariana
 
 #endif /* __OPS_BACKEND_GPU_IMPL_MATMUL_H__ */

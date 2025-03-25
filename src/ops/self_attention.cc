@@ -25,31 +25,45 @@ bool SelfAttentionFunc::init(const ModelParam& param, const std::string& node_na
                    <<"heads "<<param.n_head;
         return false;
     }
-
+    
     m_attention_head_size = param.n_embd/param.n_head;
     m_n_head = param.n_head;
     ModelParam::SafeTensorInfo sti;
-    TRY_STL(sti = param.sti_map.at(node_name+".query.weight"), return false);
+    TRY_STL(sti = param.sti_map.at(node_name+"."+param.q_weight_prefix+".weight"), return false);
     Tensor q_weight(sti.shape, DataOn::CPU, sti.data, sti.dtype);
-    TRY_STL(sti = param.sti_map.at(node_name+".query.bias"), return false);
-    Tensor q_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype);
-    
-    TRY_STL(sti = param.sti_map.at(node_name+".key.weight"), return false);
-    Tensor k_weight(sti.shape, DataOn::CPU, sti.data, sti.dtype);
-    TRY_STL(sti = param.sti_map.at(node_name+".key.bias"), return false);
-    Tensor k_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype);
-    
-    TRY_STL(sti = param.sti_map.at(node_name+".value.weight"), return false);
-    Tensor v_weight(sti.shape, DataOn::CPU, sti.data, sti.dtype);
-    TRY_STL(sti = param.sti_map.at(node_name+".value.bias"), return false);
-    Tensor v_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype);
     m_q_weight = q_weight.deepcopy();
-    m_q_bias   = q_bias.deepcopy();
-    m_k_weight = k_weight.deepcopy();
-    m_k_bias   = k_bias.deepcopy();
-    m_v_weight = v_weight.deepcopy();
-    m_v_bias   = v_bias.deepcopy();
+    if (param.sti_map.count(node_name+"."+param.q_weight_prefix+".bias")) {
+        TRY_STL(sti = param.sti_map.at(node_name+"."+param.q_weight_prefix+".bias"), return false);
+        Tensor q_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+        m_q_bias   = q_bias.deepcopy();
+    }
     
+    TRY_STL(sti = param.sti_map.at(node_name+"."+param.k_weight_prefix+".weight"), return false);
+    Tensor k_weight(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_k_weight = k_weight.deepcopy();
+    if (param.sti_map.count(node_name+"."+param.k_weight_prefix+".bias")) {
+        TRY_STL(sti = param.sti_map.at(node_name+"."+param.k_weight_prefix+".bias"), return false);
+        Tensor k_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+        m_k_bias   = k_bias.deepcopy();
+    }
+    
+    TRY_STL(sti = param.sti_map.at(node_name+"."+param.v_weight_prefix+".weight"), return false);
+    Tensor v_weight(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_v_weight = v_weight.deepcopy();
+    if (param.sti_map.count(node_name+"."+param.v_weight_prefix+".bias")) {
+        TRY_STL(sti = param.sti_map.at(node_name+"."+param.v_weight_prefix+".bias"), return false);
+        Tensor v_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+        m_v_bias   = v_bias.deepcopy();
+    }
+    
+    TRY_STL(sti = param.sti_map.at(node_name+"."+param.o_weight_prefix+".weight"), return false);
+    Tensor o_weight(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+    m_o_weight = o_weight.deepcopy();
+    if (param.sti_map.count(node_name+"."+param.o_weight_prefix+".bias")) {
+        TRY_STL(sti = param.sti_map.at(node_name+"."+param.o_weight_prefix+".bias"), return false);
+        Tensor o_bias(sti.shape, DataOn::CPU, sti.data, sti.dtype);
+        m_o_bias   = o_bias.deepcopy();
+    }
     return true;
 }
 

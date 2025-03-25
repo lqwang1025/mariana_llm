@@ -28,6 +28,8 @@ public:
     virtual bool make_graph(const char* dir_path, GptParams& gpt_params, ExeContext& context) override;
 private:
     Tensor _get_position_ids(const std::vector<int>& tokens);
+    Tensor _get_attn_mask(const std::vector<int>& tokens);
+    int32_t _num_atten_heads = 0;
 };
 
 } // namespace mariana

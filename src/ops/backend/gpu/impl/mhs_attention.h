@@ -26,6 +26,8 @@ void mhs_attention(SchedParam sched_param, const Tensor& Q, const Tensor& K, con
 
 void mhs_swin_mask_attention(SchedParam sched_param, const Tensor& Q, const Tensor& K, const Tensor& V, const Tensor& pos_mask, const Tensor& attn_mask, Tensor& out, int32_t n_head, int32_t head_size, CUDAContext* cuda_ctx);
 
+void apply_rotary_pos_emb(SchedParam sched_param, const Tensor& hidden_states, const Tensor& sin, const Tensor& cos, Tensor& out, CUDAContext* cuda_ctx);
+
 } // namespace mariana
 
 #endif /* __OPS_BACKEND_GPU_IMPL_MHS_ATTENTION_H__ */

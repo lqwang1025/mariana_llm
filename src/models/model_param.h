@@ -40,6 +40,11 @@ struct ModelParam {
         void* data{nullptr};
     };
     std::unordered_map<std::string, SafeTensorInfo> sti_map;
+    // decoder & MLP parameter
+    std::string       q_weight_prefix         = "";
+    std::string       k_weight_prefix         = "";
+    std::string       v_weight_prefix         = "";
+    std::string       o_weight_prefix         = "";
     int32_t           n_vocab                 = 0;
     int32_t           n_embd                  = 0;
     int32_t           n_head                  = 0;

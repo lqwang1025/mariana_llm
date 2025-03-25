@@ -238,4 +238,51 @@ void mhs_swin_mask_attention(SchedParam sched_param, const Tensor& Q, const Tens
     }
 }
 
+__global__ void __apply_rotary_pos_emb_fp32_kernel(const float* hid_ptr, const float* sin_ptr, const float* cos_ptr, float* out_ptr, uint32_t distance, uint32_t head_size, uint32_t voc_len, uint32_t head_dim) {
+    int32_t index = (blockIdx.x + blockIdx.y * gridDim.x) * blockDim.x + threadIdx.x;
+    if (index >= distance*head_size*voc_len*head_dim) return;
+    uint32_t idx = index;
+    uint32_t idx4 = idx % head_dim;
+    idx /= head_dim;
+    uint32_t idx3 = idx % voc_len;
+    idx /= voc_len;
+    uint32_t idx2 = idx % head_size;
+    idx /= head_size;
+    uint32_t idx1 = idx;
+    uint32_t pos_idx = idx1*voc_len*head_dim + idx3*head_dim + idx4;
+    uint32_t hid_idx = idx1*head_size*voc_len*head_dim + idx2*voc_len*head_dim + idx3*head_dim + idx4;
+    uint32_t half_head_dim = head_dim/2;
+    uint32_t rotary_hid_idx = hid_idx;
+    float rotary_value = 0.f;
+    if (idx4 < half_head_dim) {
+        rotary_hid_idx += half_head_dim;
+        rotary_value = -hid_ptr[rotary_hid_idx];
+    } else {
+        rotary_hid_idx -= half_head_dim;
+        rotary_value = hid_ptr[rotary_hid_idx];
+    }
+    out_ptr[hid_idx] = hid_ptr[hid_idx]*cos_ptr[pos_idx] + rotary_value*sin_ptr[pos_idx];
+}
+
+void apply_rotary_pos_emb(SchedParam sched_param, const Tensor& hidden_states, const Tensor& sin, const Tensor& cos, Tensor& out, CUDAContext* cuda_ctx) {
+    cuda_set_device(cuda_ctx->device);
+    if (out.dtype().match<float>()) {
+        const uint32_t sin_offset  = sin.stride_at(0);
+        const uint32_t cos_offset  = cos.stride_at(0);
+        const uint32_t out_offset  = out.stride_at(0);
+        const uint32_t hid_offset  = hidden_states.stride_at(0);
+        float* sin_ptr     = sin.unsafe_ptr<float>(sched_param.this_thread_begin_index()*sin_offset);
+        float* cos_ptr     = cos.unsafe_ptr<float>(sched_param.this_thread_begin_index()*cos_offset);
+        float* out_ptr     = out.unsafe_ptr<float>(sched_param.this_thread_begin_index()*out_offset);
+        float* hid_ptr     = hidden_states.unsafe_ptr<float>(sched_param.this_thread_begin_index()*hid_offset);
+        uint32_t distance  = sched_param.this_thread_end_index() - sched_param.this_thread_begin_index();
+        uint32_t head_size = hidden_states.dim_at(1);
+        uint32_t voc_len   = hidden_states.dim_at(2);
+        uint32_t head_dim  = hidden_states.dim_at(3);
+        __apply_rotary_pos_emb_fp32_kernel<<<get_cuda_gridsize(distance*hid_offset, CUDA_ATTN_BLOCK_SIZE),
+            CUDA_ATTN_BLOCK_SIZE, 0, cuda_ctx->stream(sched_param.id_thread)>>>(hid_ptr, sin_ptr, cos_ptr, out_ptr, distance, head_size, voc_len, head_dim);
+        cuda_ctx->stream_sync(cuda_ctx->stream(sched_param.id_thread));
+    }
+}
+
 } // namespace mariana

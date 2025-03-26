@@ -48,8 +48,10 @@ tensor_list Qwen2::_compute(ExeContext& context, const std::vector<int>& tokens,
 
 Tensor Qwen2::_get_position_ids(const std::vector<int>& tokens, int32_t cache_len) {
     Tensor postion_ids({1, static_cast<int32_t>(tokens.size())});
+    int32_t* pi_ptr = postion_ids.mutable_ptr<int32_t>();
     for (uint32_t i = cache_len; i < postion_ids.total_size()+cache_len; ++i) {
-        postion_ids.mutable_ptr<int32_t>()[i] = static_cast<int32_t>(i);
+        *pi_ptr = static_cast<int32_t>(i);
+        pi_ptr += 1;
     }
     return postion_ids;
 }

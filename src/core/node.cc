@@ -51,7 +51,6 @@ bool Node::init(const OpCategory& opcate, const ModelParam& param, const std::ve
 void Node::forward(ExeContext& context) {
     absl::MutexLock lck(&m_mutex);
     m_complete = false;
-    // MLOG(INFO)<<"DDDDDDDDDDDDDDDDDDD";
     MLOG_IF(ERROR, !m_op)<<"m_op null";
     {
         AUTOTIME(op_to_string(m_opcate).c_str());

@@ -109,7 +109,6 @@ tensor_list Graph::forward(const KeyTensorMap& input_map, ExeContext& context) {
         }
         m_nodes[i]->set_inputs(itensors);
         m_tp->submit(std::mem_fn(&Node::forward), m_nodes[i].get(), std::ref(context));
-        m_nodes[i]->wait_for_done();
     }
     for (size_t i = 0; i < m_leafs.size(); ++i) {
 #if defined(MLM_USE_CUDA)

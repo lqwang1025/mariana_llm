@@ -155,8 +155,9 @@ bool LModel::generate(ExeContext& context, AIResult& result) {
         if (m_tokenizer->is_stop(cur_token)) {
             break;
         }
-        cache_len += tokens.size();
-        tokens = {cur_token};
+        // cache_len += tokens.size();
+        // tokens = {cur_token};
+        tokens.push_back(cur_token);
         std::string token = m_tokenizer->decode(cur_token);
         std::cout<<std::unitbuf<<token;
     }

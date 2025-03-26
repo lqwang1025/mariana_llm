@@ -32,7 +32,6 @@ namespace mariana {
 
 tensor_list Qwen2::_compute(ExeContext& context, const std::vector<int>& tokens, int32_t cache_len) {
     TRACE();
-    MLOG(INFO)<<tokens.size();
     AIResult result;
     Tensor position_ids = _get_position_ids(tokens, cache_len);
     Tensor input_ids({1, static_cast<int32_t>(tokens.size())}, DataOn::CPU, const_cast<int*>(tokens.data()), TypeMeta::make<int32_t>());
@@ -44,7 +43,6 @@ tensor_list Qwen2::_compute(ExeContext& context, const std::vector<int>& tokens,
         {"model.attn_mask", {attn_mask}},
     };
     tensor_list otensors = m_graph->forward(key_tensor_map, context);
-    MLOG(INFO)<<"DDDDDDDDDDDDDDDDDDDDDDDDDD";
     return otensors;
 }
 

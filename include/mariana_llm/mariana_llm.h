@@ -55,7 +55,7 @@ void mariana_llm_init();
 
 GptModel* mariana_create_lmodel(GptParams& gpt_params);
 
-AIResult mariana_compute_lmodel(GptModel* gpt_model);
+bool mariana_generate_lmodel(GptModel* gpt_model, AIResult& result);
 
 void mariana_destroy_lmodel(GptModel* gpt_model);
 

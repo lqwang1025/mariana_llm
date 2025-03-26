@@ -42,6 +42,7 @@ struct SResult {
 struct AIResult {
     std::vector<SResult> results;
     std::string id;
+    std::string response;
 };
 
 enum class DataOn : uint8_t {

@@ -122,8 +122,8 @@ tensor_list Graph::forward(const KeyTensorMap& input_map, ExeContext& context) {
     for (size_t i = 0; i < m_leafs.size(); ++i) {
 #if defined(MLM_USE_CUDA)
         int32_t cur_node_device_id = 0;
-        if (DataOn::GPU == m_nodes[i]->backend_ctx()->device) {
-            CUDAContext* cuda_context = static_cast<CUDAContext*>(m_nodes[i]->backend_ctx()->context);
+        if (DataOn::GPU == m_leafs[i]->backend_ctx()->device) {
+            CUDAContext* cuda_context = static_cast<CUDAContext*>(m_leafs[i]->backend_ctx()->context);
             cur_node_device_id = cuda_context->device;
         }
         int32_t cur_device = cuda_get_device();

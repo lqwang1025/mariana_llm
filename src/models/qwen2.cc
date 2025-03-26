@@ -34,10 +34,7 @@ namespace mariana {
 AIResult Qwen2::compute(ExeContext& context) {
     TRACE();
     AIResult result;
-    std::string str = R"([{"role": "system", "content": "你是一个有用的助手。"},
-                {"role": "user", "content": "给我介绍一下大型语言模型 transformers。"}
-               ])";
-    std::string prompt = m_tokenizer->apply_chat_template(str);
+    std::string prompt = m_tokenizer->apply_chat_template(context.prompt);
     std::vector<int> tokens = m_tokenizer->encode(prompt);
     Tensor position_ids = _get_position_ids(tokens);
     Tensor input_ids({1, static_cast<int32_t>(tokens.size())}, DataOn::CPU, tokens.data(), TypeMeta::make<int32_t>());
@@ -50,6 +47,7 @@ AIResult Qwen2::compute(ExeContext& context) {
     };
     
     tensor_list otensors = m_graph->forward(key_tensor_map, context);
+    // DUMP_TENSOR_TO_TXT(otensors[0].cpu(), "otensors");
     return result;
 }
 
@@ -115,7 +113,7 @@ bool Qwen2::make_graph(const char* dir_path, GptParams& gpt_params, ExeContext& 
     std::string safe_tensors = os_path_join(dir_path, "model.safetensors");
     SafeTensorsCallback callback = [](ModelParam::SafeTensorInfo&sti, ModelParam&param,
                                       const std::string&key)->void {
-        if (absl::StartsWith(key, "model")) {
+        if (absl::StartsWith(key, "model") || absl::StartsWith(key, "lm_head")) {
             param.sti_map[key] = sti;
             MVLOG(4)<<"read the qwen weight:"<<key;
         }
@@ -180,6 +178,8 @@ bool Qwen2::make_graph(const char* dir_path, GptParams& gpt_params, ExeContext& 
         NodeSharedPtr down_proj = m_graph->make_node(OpCategory::MatMul, model_param, {mul_node}, name);
         residual = m_graph->make_node(OpCategory::Add, model_param, {add_node, down_proj});
     }
+    NodeSharedPtr norm_node = m_graph->make_node(OpCategory::RMSNorm, model_param, {residual}, "model.norm");
+    NodeSharedPtr lm_head = m_graph->make_leaf(OpCategory::MatMul, model_param, {norm_node}, "lm_head");
     model_param.release();
     return ok;
 }

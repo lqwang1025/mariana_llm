@@ -38,7 +38,7 @@ bool SentencepieceTokenizer::load(const std::string& filename, const AnyMap& par
     }
     
     std::string eos_token = "";
-    if (param.count("eos_token") && add_eos_token) {
+    if (param.count("eos_token")) {
         try {
             eos_token = ::absl::any_cast<std::string>(param.at("eos_token"));
         } catch(const absl::bad_any_cast &e) {
@@ -48,7 +48,7 @@ bool SentencepieceTokenizer::load(const std::string& filename, const AnyMap& par
     }
     
     std::string bos_token = "";
-    if (param.count("bos_token") && add_bos_token) {
+    if (param.count("bos_token")) {
         try {
             bos_token = ::absl::any_cast<std::string>(param.at("bos_token"));
         } catch(const absl::bad_any_cast &e) {
@@ -60,7 +60,15 @@ bool SentencepieceTokenizer::load(const std::string& filename, const AnyMap& par
     std::string chat_template = "";
     TRY_ANY_CAST(chat_template, param.at("chat_template"), pass);
     if (chat_template.empty() == false) {
-        _chat_tmpl = new minja::chat_template(chat_template, bos_token, eos_token);
+        std::string _eos_token = "";
+        if (add_eos_token) {
+            _eos_token = eos_token;
+        }
+        std::string _bos_token = "";
+        if (add_bos_token) {
+            _bos_token = bos_token;
+        }
+        _chat_tmpl = new minja::chat_template(chat_template, _bos_token, _eos_token);
     }
     std::string token_cfg_path = os_path_join(filename, "tokenizer.json");
     AnyMap token_param;
@@ -91,6 +99,9 @@ bool SentencepieceTokenizer::load(const std::string& filename, const AnyMap& par
         int32_t id;
         TRY_ANY_CAST(id, token.at("id"), pass);
         _special_pieces.insert({content, id});
+        if (eos_token == content) {
+            _stop_tokens.push_back(id);
+        }
     }
     
     AnyMap model;
@@ -114,24 +125,38 @@ bool SentencepieceTokenizer::load(const std::string& filename, const AnyMap& par
         _bpe_ranks.insert(std::make_pair(pair, i));
     }
     
-    _decoder.resize(_pieces.size());
+    _decoder.resize(_pieces.size()+_special_pieces.size());
     for (auto& pieces : _pieces) {
         _decoder[pieces.second] = pieces.first;
     }
+    for (auto& pieces : _special_pieces) {
+        _decoder[pieces.second] = pieces.first;
+    }
     
-    // minja::chat_template_inputs inputs;
-    // inputs.messages = json::parse(R"([
-    //     {"role": "user", "content": "Hello"}
-    // ])");
-    // inputs.add_generation_prompt = true;
-    // std::string prompt = _chat_tmpl->apply(inputs);
-    // std::string decoded;
-    // std::vector<uint32_t> cpts = unicode_cpts_from_utf8(prompt);
-    // for (const auto cpt : cpts) {
-    //     const auto utf8 = unicode_byte_to_utf8(cpt);
-    //     decoded += unicode_utf8_to_byte(utf8);
-    // }
-    // MLOG(INFO)<<decoded;
+    // bytes_to_unicode
+    std::unordered_map<uint8_t, wchar_t> b2u;
+    auto _insert_range = [&](int start, int end) {
+        for (int c = start; c <= end; c++) {
+            b2u.insert({uint8_t(c), wchar_t(c)});
+        }
+    };
+
+    b2u.clear();
+    _insert_range(L'!', L'~');
+    _insert_range(L'¡', L'¬');
+    _insert_range(L'®', L'ÿ');
+
+    int n = 0;
+    for (int b = 0; b < 256; b++) {
+        if (b2u.find(uint8_t(b)) == b2u.end()) {
+            b2u.insert({uint8_t(b), wchar_t(256 + n)});
+            n++;
+        }
+    }
+    for (auto e : b2u) {
+        _u2b.insert({e.second, e.first});
+    }
+    
     return true;
 }
 
@@ -263,9 +288,25 @@ void SentencepieceTokenizer::encode(const std::string& str, std::vector<int>& to
     }
 }
 
-std::string SentencepieceTokenizer::decode(int id) {
-    
+static std::wstring utf8_to_wstring(const std::string& str) {
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> myconv;
+    return myconv.from_bytes(str);
 }
 
+
+std::string SentencepieceTokenizer::decode(int id) {
+    if (id >= static_cast<int>(_decoder.size())) {
+        MLOG(INFO)<<"DD:"<<id;
+        return "";
+    }
+    std::wstring w = utf8_to_wstring(_decoder.at(id));
+    std::string r;
+    for (wchar_t c : w) {
+        if (_u2b.find(c) != _u2b.end()) {
+            r.push_back(char(_u2b.at(c)));
+        }
+    }
+    return r;
+}
 
 } // namespace mariana

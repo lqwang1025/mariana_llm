@@ -39,10 +39,12 @@ public:
     virtual void encode(const std::string& str, std::vector<int>& tokens)=0;
     virtual std::string decode(int id) = 0;
     virtual std::string apply_chat_template(const std::string& str);
+    bool is_stop(int32_t token) const;
 protected:    
     minja::chat_template *_chat_tmpl = nullptr;
     std::unordered_map<std::string, int> _special_pieces;
     std::unordered_map<std::string, int> _pieces;
+    std::vector<int32_t> _stop_tokens;
     std::vector<std::string> _regexes;
 };
 

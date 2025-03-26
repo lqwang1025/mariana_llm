@@ -24,11 +24,13 @@ public:
     Qwen2() {}
     virtual ~Qwen2() {}
     bool load_token(const char* dir_path);
-    virtual AIResult compute(ExeContext& context)override;
+    
     virtual bool make_graph(const char* dir_path, GptParams& gpt_params, ExeContext& context) override;
+protected:
+    virtual tensor_list _compute(ExeContext& context, const std::vector<int>& tokens, int32_t cache_len) override;
 private:
-    Tensor _get_position_ids(const std::vector<int>& tokens);
-    Tensor _get_attn_mask(const std::vector<int>& tokens);
+    Tensor _get_position_ids(const std::vector<int>& tokens, int32_t cache_len);
+    Tensor _get_attn_mask(const std::vector<int>& tokens, int32_t cache_len);
     int32_t _num_atten_heads = 0;
 };
 

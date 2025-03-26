@@ -36,7 +36,7 @@
 
 namespace mariana {
 
-AIResult GroundingDINO::compute(ExeContext& context) {
+tensor_list GroundingDINO::_compute(ExeContext& context, const std::vector<int>& tokens, int32_t cache_len) {
     TRACE();
     // TODO: batch inputs!!!!
     std::vector<int32_t> token = m_tokenizer->encode(context.prompt);
@@ -74,14 +74,14 @@ AIResult GroundingDINO::compute(ExeContext& context) {
     tensor_list otensors = m_graph->forward(key_tensor_map, context);
     AIResult result;
     if (otensors.empty()) {
-        return result;
+        return {};
     }
     Tensor bbox = otensors[0];
     Tensor scores = otensors[1];
     Tensor probs = otensors[2];
     
     _post_process(bbox, scores, probs, token, result, context);
-    return result;
+    return otensors;
 }
 
 void GroundingDINO::_pre_process(const Tensor& input, Tensor& out) {

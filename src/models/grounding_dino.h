@@ -27,8 +27,9 @@ public:
     bool load_param(const char* dir_path, AnyMap& bert_param, AnyMap& dino_param,
                     AnyMap& swin_param, ModelParam& bert_model_param,
                     ModelParam& dino_model_param, ModelParam& swin_model_param);
-    virtual AIResult compute(ExeContext& context)override;
     virtual bool make_graph(const char* dir_path, GptParams& gpt_params, ExeContext& context)override;
+protected:
+    virtual tensor_list _compute(ExeContext& context, const std::vector<int>& tokens, int32_t cache_len)override;
 private:
     // reference in transformers/models/grounding_dino/modeling_grounding_dino.py:2020
     bool _generate_masks_with_special_tokens_and_transfer_map(const std::vector<int32_t>& input_ids,

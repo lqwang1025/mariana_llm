@@ -15,7 +15,6 @@
 #include <core/graph.h>
 #include <core/impl/thread_pool.h>
 
-#include <utils/progress_bar.h>
 #include <utils/mariana_define.h>
 
 #include <mariana_llm/mariana_llm.h>
@@ -72,14 +71,9 @@ NodeSharedPtr Graph::make_leaf(const OpCategory& opcate, const ModelParam& param
 
 tensor_list Graph::forward(const KeyTensorMap& input_map, ExeContext& context) {
     TRACE();
-    ProgressBar pb("Generate:");
-    float _total   = m_roots.size()+m_nodes.size()+m_leafs.size();
-    float _current = 0;
     for (size_t i = 0; i < m_roots.size(); ++i) {
         MCHECK_NE(input_map.count(m_roots[i]->name()), static_cast<size_t>(0))
             <<"Can't find input node tensor: "<<m_roots[i]->name();
-        pb.print_bar("", static_cast<uint16_t>(std::round(_current/_total*100.f)));
-        _current += 1;
         m_roots[i]->set_inputs(input_map.at(m_roots[i]->name()));
         m_tp->submit(std::mem_fn(&Node::forward), m_roots[i].get(), std::ref(context));
     }
@@ -113,8 +107,6 @@ tensor_list Graph::forward(const KeyTensorMap& input_map, ExeContext& context) {
             itensors.insert(itensors.end(), inode->otensors().begin(), inode->otensors().end());
 #endif
         }
-        pb.print_bar("", static_cast<uint16_t>(std::round(_current/_total*100.f)));
-        _current += 1;
         m_nodes[i]->set_inputs(itensors);
         m_tp->submit(std::mem_fn(&Node::forward), m_nodes[i].get(), std::ref(context));
         m_nodes[i]->wait_for_done();
@@ -149,8 +141,6 @@ tensor_list Graph::forward(const KeyTensorMap& input_map, ExeContext& context) {
             itensors.insert(itensors.end(), inode->otensors().begin(), inode->otensors().end());
 #endif
         }
-        pb.print_bar("", static_cast<uint16_t>(std::round(_current/_total*100.f)));
-        _current += 1;
         m_leafs[i]->set_inputs(itensors);
         m_tp->submit(std::mem_fn(&Node::forward), m_leafs[i].get(), std::ref(context));
     }

@@ -31,6 +31,7 @@ public:
 private:
     std::map<std::pair<std::string, std::string>, int> _bpe_ranks;
     std::vector<std::string> _decoder;
+    std::unordered_map<wchar_t, uint8_t> _u2b;
 };
 
 } // namespace mariana

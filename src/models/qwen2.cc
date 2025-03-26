@@ -13,7 +13,6 @@
 #include <core/graph.h>
 #include <core/node.h>
 #include <core/function.h>
-#include <core/tensor_utils.h>
 
 #include <models/qwen2.h>
 
@@ -31,36 +30,34 @@
 
 namespace mariana {
 
-AIResult Qwen2::compute(ExeContext& context) {
+tensor_list Qwen2::_compute(ExeContext& context, const std::vector<int>& tokens, int32_t cache_len) {
     TRACE();
+    MLOG(INFO)<<tokens.size();
     AIResult result;
-    std::string prompt = m_tokenizer->apply_chat_template(context.prompt);
-    std::vector<int> tokens = m_tokenizer->encode(prompt);
-    Tensor position_ids = _get_position_ids(tokens);
-    Tensor input_ids({1, static_cast<int32_t>(tokens.size())}, DataOn::CPU, tokens.data(), TypeMeta::make<int32_t>());
-    Tensor attn_mask = _get_attn_mask(tokens);
+    Tensor position_ids = _get_position_ids(tokens, cache_len);
+    Tensor input_ids({1, static_cast<int32_t>(tokens.size())}, DataOn::CPU, const_cast<int*>(tokens.data()), TypeMeta::make<int32_t>());
+    Tensor attn_mask = _get_attn_mask(tokens, cache_len);
     KeyTensorMap key_tensor_map;
     key_tensor_map = {
         {"model.embed_tokens", {input_ids}},
         {"model.position_ids", {position_ids}},
         {"model.attn_mask", {attn_mask}},
     };
-    
     tensor_list otensors = m_graph->forward(key_tensor_map, context);
-    // DUMP_TENSOR_TO_TXT(otensors[0].cpu(), "otensors");
-    return result;
+    MLOG(INFO)<<"DDDDDDDDDDDDDDDDDDDDDDDDDD";
+    return otensors;
 }
 
-Tensor Qwen2::_get_position_ids(const std::vector<int>& tokens) {
+Tensor Qwen2::_get_position_ids(const std::vector<int>& tokens, int32_t cache_len) {
     Tensor postion_ids({1, static_cast<int32_t>(tokens.size())});
-    for (uint32_t i = 0; i < postion_ids.total_size(); ++i) {
+    for (uint32_t i = cache_len; i < postion_ids.total_size()+cache_len; ++i) {
         postion_ids.mutable_ptr<int32_t>()[i] = static_cast<int32_t>(i);
-    }    
+    }
     return postion_ids;
 }
 
-Tensor Qwen2::_get_attn_mask(const std::vector<int>& tokens) {
-    Tensor attn_mask({1, _num_atten_heads, static_cast<int32_t>(tokens.size()), static_cast<int32_t>(tokens.size())});
+Tensor Qwen2::_get_attn_mask(const std::vector<int>& tokens, int32_t cache_len) {
+    Tensor attn_mask({1, _num_atten_heads, static_cast<int32_t>(tokens.size()), static_cast<int32_t>(tokens.size())+cache_len});
     for (int n = 0; n < attn_mask.dim_at(0); ++n) {
         for (int ah = 0; ah < attn_mask.dim_at(1); ++ah) {
             for (int h = 0; h < attn_mask.dim_at(2); ++h) {

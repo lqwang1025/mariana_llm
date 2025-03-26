@@ -31,9 +31,10 @@ GptModel* mariana_create_lmodel(GptParams& gpt_params) {
     return gpt_model;
 }
 
-AIResult mariana_compute_lmodel(GptModel* gpt_model) {
+bool mariana_generate_lmodel(GptModel* gpt_model, AIResult& result) {
     LModel* model = static_cast<LModel*>(gpt_model->handle);
-    return model->compute(*gpt_model->context);
+    bool ok = model->generate(*gpt_model->context, result);
+    return ok;
 }
 
 void mariana_destroy_lmodel(GptModel* gpt_model) {

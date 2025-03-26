@@ -11,10 +11,12 @@
 
 #include <fstream>
 #include <functional>
+#include <unordered_set>
 
 #include <utils/sys.h>
 
 #include <models/lmodels.h>
+#include <core/tensor_utils.h>
 
 #include <core/graph.h>
 #include <core/impl/allocator.h>
@@ -23,6 +25,8 @@
 #include <utils/mariana_define.h>
 #include <utils/dtype_utils.h>
 #include <utils/rapidjson/document.h>
+
+#include <token/sentencepiece.h>
 
 namespace mariana {
 
@@ -112,6 +116,53 @@ bool LModel::_backend_setup(GptParams& gpt_params, ExeContext& context) {
         MLOG(ERROR)<<"unsupport backend:"<<device_string(gpt_params.backend);
         return false;
     }
+}
+
+int32_t LModel::_sample(Tensor& logits, const std::vector<int32_t>& pre_ids, int offset, int size) {
+    std::unordered_set<int32_t> ids_set(pre_ids.begin(), pre_ids.end());
+    Tensor  logits_cpu = logits.cpu();
+    int32_t ssize       = logits_cpu.dim_at(2);
+    int32_t len        = logits_cpu.dim_at(1);
+    float* scores = logits_cpu.ptr<float>((len-1)*ssize);
+    for (auto id : ids_set) {
+        float score = scores[id];
+        scores[id]  = score < 0 ? score * _repetition_penalty : score / _repetition_penalty;
+    }
+    // argmax
+    float max_score = scores[0];
+    int32_t token_id = 0;
+    for (int i = 1; i < ssize; i++) {
+        float score = scores[i];
+        if (score > max_score) {
+            max_score = score;
+            token_id  = i;
+        }
+    }
+    return token_id;
+}
+
+bool LModel::generate(ExeContext& context, AIResult& result) {
+    std::string prompt = m_tokenizer->apply_chat_template(context.prompt);
+    std::vector<int32_t> tokens = m_tokenizer->encode(prompt);
+    
+    int32_t new_token_len = 0;
+    int32_t cache_len = 0;
+    while (new_token_len < context.max_text_len) {
+        tensor_list otensors = _compute(context, tokens, cache_len);
+        if (otensors.empty()) break;
+        ++new_token_len;
+        int32_t cur_token = _sample(otensors[0], tokens);
+        if (m_tokenizer->is_stop(cur_token)) {
+            break;
+        }
+        cache_len += tokens.size();
+        tokens = {cur_token};
+        std::string token = m_tokenizer->decode(cur_token);
+        std::cout<<std::unitbuf<<token;
+    }
+    std::cout << std::endl;
+    // DUMP_TENSOR_TO_TXT(otensors[0].cpu(), "otensors");
+    return true;
 }
 
 } // namespace mariana

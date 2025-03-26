@@ -18,6 +18,10 @@
 
 namespace mariana {
 
+bool Tokenizer::is_stop(int32_t token) const {
+    return std::find(_stop_tokens.begin(), _stop_tokens.end(), token) != _stop_tokens.end();
+}
+
 std::string Tokenizer::apply_chat_template(const std::string& str) {
     if (_chat_tmpl == nullptr) {
         return str;
